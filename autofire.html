@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
 </head><body>
 <div id="nav"></div>
+<div id="banner"></div>
 <div class="intro">
   <h1>Recoil &amp; Autofire — the muzzle walk</h1>
   <p>The <b>first</b> bullet of a burst is the aimed shot; every bullet after it adds recoil that pushes the muzzle off target. Strength &amp; agility set how much force you <i>can</i> apply (<code>CalcCounterForceMax</code>); dexterity/wisdom/agility/experience set how <i>accurately</i> you apply it (<code>CalcCounterForceAccuracy</code>). Low‑skill mercs can't tame the climb, so their spray walks off the target.</p>
@@ -54,7 +55,8 @@ const TUNE=[
 document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE) +
   `<div class="card presets"><h2>Presets</h2><button id="pv">Reset to Vanilla</button>
     <button id="pc">Tamer autofire</button>
-    <div class="note">"Tamer autofire" raises counter-force on the PROPOSED side.</div></div>`;
+    <div class="note">"Tamer autofire" raises counter-force on the PROPOSED side.</div></div>` +
+  N.exportCard();
 
 function perBullet(C){ return N.burst(s,C,s.aprange,s.maxaim,s.sight,s.mag,C.IRON_GRAD); }
 function drawWalk(b){
@@ -81,6 +83,8 @@ function render(){
   document.getElementById('sum').innerHTML =
     `Average hit across the volley: CURRENT <b>${(100*bC.avg).toFixed(0)}%</b> · PROPOSED <b style="color:var(--prop)">${(100*bP.avg).toFixed(0)}%</b>. `+
     `Counter-force accuracy <b>${N.cfAccuracy(s,s.CUR).toFixed(0)}%</b>, max counter-force <b>${N.cfMax(s,s.CUR).toFixed(1)}</b> vs recoil <b>${s.gunRecoil}</b>/bullet.`;
+  document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
+  N.renderExport(s);
 }
 const root=document.querySelector('.lab');
 N.bind(root,s,render);

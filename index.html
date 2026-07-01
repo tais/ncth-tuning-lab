@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
 </head><body>
 <div id="nav"></div>
+<div id="banner"></div>
 <div class="intro">
   <h1>Accuracy — one aimed shot</h1>
   <p>The core of NCTH: displayed CTH → <code>muzzleSway = 100 − CTH</code> → a cone of fire → a random bullet. The cursor % is <b>not</b> the hit chance — this shows what the game actually rolls. <b style="color:var(--good)">Green/blue = CURRENT</b> (vanilla) · <b style="color:var(--prop)">purple = PROPOSED</b> (your edits on the right).</p>
@@ -28,7 +29,8 @@ document.getElementById('c1').innerHTML =
     <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
     <div class="row"><label>Sight</label><div class="seg" data-seg="sight"><button data-v="iron">Iron</button><button data-v="scope">Scope</button></div></div>
     <div class="row" id="magrow"><label>Scope magnification</label><span class="val"></span><input data-bind="mag" type="range" min="1" max="10" step="0.5" data-fmt="×"></div>
-    <div class="note">Handling×stance drives the gun-difficulty penalty (AP_MAXIMUM=100 ⇒ gun-difficulty ≈ handling).</div>
+    <div class="row"><label>Gun bullet-deviation (2nd scatter layer)</label><div class="seg" data-seg="bulletdev" data-num><button data-v="0">Off</button><button data-v="1">On</button></div></div>
+    <div class="note">Handling×stance drives the gun-difficulty penalty. Bullet-deviation adds the weapon's own accuracy scatter (grows with range, invisible on the cursor).</div>
   </div>
   <div class="card"><h2>Target silhouette (units · 1 tile=10)</h2>
     <div class="row"><label>Half-width</label><span class="val"></span><input data-bind="tw" type="range" min="1.5" max="6" step="0.5"></div>
@@ -46,6 +48,10 @@ document.getElementById('c2').innerHTML =
   <div class="chartbox"><h3>Displayed CTH (cursor %) vs range</h3>
     <p class="sub">The number on the cursor — note how it barely moves while real hits collapse.</p>
     <canvas id="cth" height="200"></canvas></div>
+  <div class="chartbox"><h3>Is the next aim click worth it?</h3>
+    <p class="sub">Real hit % gained per aim click (each click costs APs), at <span id="apr2">10</span> tiles. Diminishing returns.</p>
+    <canvas id="perap" height="180"></canvas>
+    <div class="legend"><span><i class="swatch" style="background:var(--good)"></i>CURRENT</span><span><i class="swatch" style="background:var(--prop)"></i>PROPOSED</span></div></div>
   <div class="lab two" style="padding:0;gap:14px;max-width:none">
     <div class="chartbox"><h3>Aperture vs target</h3>
       <p class="sub">Muzzle-sway disk (blue) vs target (green) at <span id="apr">10</span> tiles, max aim. 250 sample shots.</p>
@@ -76,7 +82,8 @@ document.getElementById('c3').innerHTML =
     <button id="pv">Reset to Vanilla</button>
     <button id="pb">Low-level buff → PROPOSED</button>
     <button id="pt">Tighter cone → PROPOSED</button>
-    <div class="note">Presets change only the <b style="color:var(--prop)">PROPOSED</b> values.</div></div>`;
+    <div class="note">Presets change only the <b style="color:var(--prop)">PROPOSED</b> values.</div></div>` +
+  N.exportCard();
 
 const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
 function ser(C,t,sight){ return rng.map(d=>[d, 100*N.realHit(s,C,d,t,sight,s.mag,C.IRON_GRAD).p]); }
@@ -125,12 +132,19 @@ function render(){
     sn=N.realHit(s,s.CUR,d,0,s.sight,s.mag,s.CUR.IRON_GRAD);
     h+=`<tr><td>${d}t</td><td>${a.cth.toFixed(0)}%</td><td>${N.pill(100*sn.p)}</td><td>${N.pill(100*a.p)}</td></tr>`; });
   document.getElementById('snap').innerHTML=h+'</table>';
+  // hit-per-aim-click chart
+  document.getElementById('apr2').textContent=s.aprange;
+  const perap=(C)=>{ const a=[]; for(let t=0;t<=s.maxaim;t++) a.push([t,100*N.realHit(s,C,s.aprange,t,s.sight,s.mag,C.IRON_GRAD).p]); return a; };
+  N.lineChart(document.getElementById('perap'),{xmax:Math.max(2,s.maxaim),xstep:1,xlabel:'aim clicks',series:[
+    {name:'cur',color:'#54d98c',data:perap(s.CUR)},{name:'prop',color:'#c58cff',dash:[6,4],data:perap(s.PROP)}]});
+  document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
+  N.renderExport(s);
 }
 const root=document.querySelector('.lab');
 N.bind(root, s, render);
 if(s.wpn===undefined) s.wpn=2;
 const wsel=document.getElementById('wpn'); wsel.value=s.wpn;
-wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil;
+wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil; s.acc=w.acc; s.effRange=w.effRange;
   root.querySelectorAll('[data-bind="handling"],[data-bind="maxaim"]').forEach(el=>{ el.value=el.dataset.bind==='handling'?s.handling:s.maxaim;
     const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; });
   N.save(s); render(); };

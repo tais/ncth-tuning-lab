@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NCTH Lab — Compare</title>
+<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
+</head><body>
+<div id="nav"></div>
+<div class="intro">
+  <h1>Compare — two loadouts head‑to‑head</h1>
+  <p>Pit two full builds (shooter + weapon + optic + stance) against each other on one real‑hit‑vs‑range chart. Answer "is the recruit with a 4× better off than the veteran with iron sights?" at each range. Uses vanilla <code>CTHConstants</code>.</p>
+</div>
+<div style="max-width:1200px;margin:0 auto;padding:8px 18px 60px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" id="builds"></div>
+  <div class="chartbox" style="margin-top:14px"><h3>Real hit chance vs range</h3>
+    <canvas id="hit" height="320"></canvas>
+    <div class="legend"><span><i class="swatch" style="background:#54d98c"></i><b id="la">Build A</b></span>
+      <span><i class="swatch" style="background:#c58cff"></i><b id="lb">Build B</b></span></div>
+    <div id="cross" class="note"></div></div>
+</div>
+<script>
+const N=NCTH; document.getElementById('nav').innerHTML=N.nav('compare.html');
+const KEY='ncth-compare-v1';
+let B; try{ B=JSON.parse(localStorage.getItem(KEY)); }catch(e){}
+if(!B) B={ a:{exp:4,marks:70,stance:'stand',wpn:2,scope:4}, b:{exp:6,marks:85,stance:'stand',wpn:6,scope:0} };
+function saveB(){ try{ localStorage.setItem(KEY,JSON.stringify(B)); }catch(e){} }
+
+function card(id,b,color){
+  const wopt=N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('');
+  const sopt=N.SCOPES.map((sc,i)=>`<option value="${i}">${sc.name}</option>`).join('');
+  return `<div class="card" style="border-top:3px solid ${color}"><h2 style="color:${color}">Build ${id.toUpperCase()}</h2>
+    <div class="row"><label>Experience</label><span class="val">${b.exp}</span><input data-b="${id}" data-k="exp" type="range" min="1" max="10" step="1" value="${b.exp}"></div>
+    <div class="row"><label>Marksmanship</label><span class="val">${b.marks}</span><input data-b="${id}" data-k="marks" type="range" min="0" max="100" step="1" value="${b.marks}"></div>
+    <div class="row"><label>Weapon</label><select data-b="${id}" data-k="wpn">${wopt}</select></div>
+    <div class="row"><label>Optic</label><select data-b="${id}" data-k="scope">${sopt}</select></div>
+    <div class="row"><label>Stance</label><div class="seg" data-b="${id}" data-k="stance">
+      <button data-v="stand">Stand</button><button data-v="crouch">Crouch</button><button data-v="prone">Prone</button></div></div>
+  </div>`;
+}
+function buildShooter(b){ const sh=N.freshState(), w=N.WEAPONS[b.wpn], sc=N.SCOPES[b.scope];
+  Object.assign(sh,{exp:b.exp,marks:b.marks,dex:70,wis:70,agi:70,str:70,stance:b.stance,
+    handling:w.handling,maxaim:w.maxaim,gunRecoil:w.gunRecoil,acc:w.acc,effRange:w.effRange,sight:sc.sight,mag:sc.mag});
+  return sh; }
+function label(b){ return `${N.WEAPONS[b.wpn].name.split(' (')[0]} + ${N.SCOPES[b.scope].name} · exp ${b.exp}/mrk ${b.marks}`; }
+
+const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
+function line(b){ const sh=buildShooter(b), C=N.DEFAULTS;
+  return rng.map(d=>[d,100*N.realHit(sh,C,d,sh.maxaim,sh.sight,sh.mag,C.IRON_GRAD).p]); }
+function render(){
+  document.getElementById('builds').innerHTML=card('a',B.a,'#54d98c')+card('b',B.b,'#c58cff');
+  // set selects + stance state
+  document.querySelectorAll('#builds [data-b]').forEach(el=>{ const b=B[el.dataset.b], k=el.dataset.k;
+    if(el.tagName==='SELECT'){ el.value=b[k]; el.onchange=()=>{ b[k]=+el.value; saveB(); render(); }; }
+    else if(el.type==='range'){ el.oninput=()=>{ b[k]=+el.value; el.parentElement.querySelector('.val').textContent=el.value; saveB(); draw(); }; }
+    else if(el.classList.contains('seg')){ el.querySelectorAll('button').forEach(btn=>{ btn.classList.toggle('on',btn.dataset.v===b[k]);
+      btn.onclick=()=>{ b[k]=btn.dataset.v; saveB(); render(); }; }); } });
+  draw();
+}
+function draw(){
+  const la=line(B.a), lb=line(B.b);
+  document.getElementById('la').textContent=label(B.a);
+  document.getElementById('lb').textContent=label(B.b);
+  N.lineChart(document.getElementById('hit'),{xmax:XMAX,xlabel:'range (tiles)',series:[
+    {name:'a',color:'#54d98c',data:la},{name:'b',color:'#c58cff',data:lb}]});
+  // find crossover(s)
+  let cross=[]; for(let i=1;i<la.length;i++){ const d0=la[i-1][1]-lb[i-1][1], d1=la[i][1]-lb[i][1];
+    if((d0<0)!==(d1<0)) cross.push(la[i][0]); }
+  const at=d=>{ const ia=la.find(p=>p[0]===d), ib=lb.find(p=>p[0]===d); return `A ${ia[1].toFixed(0)}% vs B ${ib[1].toFixed(0)}%`; };
+  document.getElementById('cross').innerHTML =
+    `At 10t: ${at(10)} · 20t: ${at(20)} · 30t: ${at(30)}.` + (cross.length? ` They cross over near <b>${cross.join(', ')} tiles</b>.` : ` One build leads at every range.`);
+}
+render();
+</script>
+</body></html>

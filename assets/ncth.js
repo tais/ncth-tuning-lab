@@ -16,6 +16,7 @@ const DEFAULTS={
   AIM_EXP:1, AIM_MARKS:3, AIM_WIS:1, AIM_DEX:2, AIM_DRAW:1,
   AIM_STAND:1.5, AIM_CROUCH:1.25, AIM_PRONE:1,
   AIM_INJURY:-60, AIM_FATIGUE:-40, AIM_SHOCK:-150, AIM_HIMORALE:1, AIM_LOMORALE:-2, AIM_GASSED:-80,
+  AIM_VISIBILITY:-1, AIM_TARGET_INVISIBLE:-50,
   MAX_CTH:99, MIN_CTH:0,
   MAX_BULLET_DEV:5, RANGE_EFFECTS_DEV:1, NORMAL_RECOIL_DIST:70,
   RC_MAX_STR:3, RC_MAX_AGI:1, RC_MAX_EXP:1, RC_MAX_FORCE:10, RC_MAX_CROUCH:10, RC_MAX_PRONE:25,
@@ -33,6 +34,8 @@ function freshState(){
     stance:'stand', diff:3, prog:0,
     handling:11, maxaim:6, sight:'iron', mag:4,
     tw:3.5, th:10,
+    // gun deviation / visibility
+    acc:63, effRange:330, bulletdev:0, vis:100,
     // conditions
     health:100, breath:100, morale:0, shock:0, drunk:0, gassed:0,
     // autofire
@@ -102,6 +105,11 @@ function displayedCTH(s,C,t,opts){
     if(rangeU < best*C.AIM_TOO_CLOSE_THRESH)
       aimMod += (best*C.AIM_TOO_CLOSE_THRESH/rangeU) * C.AIM_TOO_CLOSE * (mag/2);
   }
+  // visibility (cover / low light): AIM_VISIBILITY penalty, floored at AIM_TARGET_INVISIBLE (Weapons.cpp:6541)
+  if(s.vis!==undefined && s.vis<100){
+    aimMod += (100 - s.vis) * C.AIM_VISIBILITY / 100;
+    aimMod = Math.max(C.AIM_TARGET_INVISIBLE, aimMod);
+  }
   let span=Math.max(0,(cap-base)*(100+aimMod)/100);
   const div=s.maxaim*(s.maxaim+1)/2, frac=span/div;
   let pts=0; for(let x=0;x<t;x++) pts+=frac*(s.maxaim-x);
@@ -139,23 +147,36 @@ function scopeEffMag(s,C,mag,dTiles){
 function scopeMinRange(C,mag){ return mag*C.NORMAL_DIST*C.SCOPE_RANGE_MULT/CELL; }
 const vbias=(s,C)=> s.stance==='stand'?1 : s.stance==='prone'?C.VERT_BIAS : 1+(C.VERT_BIAS-1)*0.66;
 
-// Monte-Carlo hit chance for an aimed shot; optional vertical center offset (recoil)
-function hitProb(apR,C,s,offY,n){
-  n=n||3000; offY=offY||0;
-  if(apR<=0 && offY===0) return 1;
+// gun bullet-deviation radius (2nd scatter layer, absent from displayed CTH). CalcBulletDeviation, LOS.cpp:9541
+function bulletDevRadius(s,C,dUnits){
+  if(!s.bulletdev) return 0;
+  let dev=C.MAX_BULLET_DEV*(100-s.acc)/100;
+  if(C.RANGE_EFFECTS_DEV) dev*=Math.max(1, dUnits/(s.effRange||1));
+  dev/=2;                       // CellXY/ScreenXY compensation
+  dev*=dUnits/C.NORMAL_DIST;    // iDistanceRatio
+  return Math.max(0,dev);
+}
+// Monte-Carlo hit chance; offY = vertical center offset (recoil); devR = gun bullet-deviation radius
+function hitProb(apR,C,s,offY,n,devR){
+  n=n||3000; offY=offY||0; devR=devR||0;
+  if(apR<=0 && offY===0 && devR<=0) return 1;
   const tw=s.tw, th=s.th, vb=vbias(s,C); let h=0;
   for(let i=0;i<n;i++){
     const r=Math.sqrt(Math.random()), a=Math.random()*2*Math.PI;
-    const dx=Math.sin(a)*r*apR, dy=Math.cos(a)*r*apR*vb + offY;
+    let dx=Math.sin(a)*r*apR, dy=Math.cos(a)*r*apR*vb + offY;
+    if(devR>0){ const r2=Math.random()*devR, a2=Math.random()*2*Math.PI;  // uniform-in-radius (no sqrt), per source
+      dx+=Math.sin(a2)*r2; dy+=Math.cos(a2)*r2; }
     if((dx*dx)/(tw*tw)+(dy*dy)/(th*th)<=1) h++;
   }
   return h/n;
 }
 function realHit(s,C,dTiles,t,sight,mag,grad){
   sight=sight||s.sight; mag=mag||s.mag;
+  const dU=dTiles*CELL;
   const cth=displayedCTH(s,C,t,{dTiles,sight,mag}), sway=100-cth;
-  const apR=aperture(dTiles*CELL,sway,C,s,sight,mag,grad);
-  return {cth,sway,apR,p:hitProb(apR,C,s)};
+  const apR=aperture(dU,sway,C,s,sight,mag,grad);
+  const devR=bulletDevRadius(s,C,dU);
+  return {cth,sway,apR,devR,p:hitProb(apR,C,s,0,3000,devR)};
 }
 
 // ---- recoil (CalcCounterForceAccuracy / CalcCounterForceMax) ----
@@ -194,7 +215,7 @@ function burst(s,C,dTiles,t,sight,mag,grad){
 // =================== UI HELPERS ===================
 function nav(active){
   const T=[['index.html','Accuracy'],['optics.html','Optics'],['conditions.html','Conditions'],
-           ['autofire.html','Recoil & Autofire']];
+           ['autofire.html','Recoil & Autofire'],['compare.html','Compare']];
   let t=T.map(([h,l])=>`<a href="${h}"${h===active?' class="on"':''}>${l}</a>`).join('');
   t+=`<a href="reference.html"${active==='reference.html'?' class="on ref"':' class="ref"'}>All parameters</a>`;
   t+=`<a href="report.html"${active==='report.html'?' class="on"':''}>Report</a>`;
@@ -272,16 +293,107 @@ function lineChart(cv, o){
 }
 function pill(v){ const c=v>=55?'p-good':v>=30?'p-warn':'p-bad'; return `<span class="pill ${c}">${Math.round(v)}%</span>`; }
 
+// ---- INI export: internal key -> real INI key/section/file ----
+const G='General',BC='Base CTH',AC='Aiming CTH',SM='Shooting Mechanism',JO='Ja2_Options.INI';
+const INIMAP={
+  DEG_APERTURE:['DEGREES_MAXIMUM_APERTURE',G], NORMAL_DIST:['NORMAL_SHOOTING_DISTANCE',G],
+  IRON_PERF:['IRON_SIGHT_PERFORMANCE_BONUS',G], IRON_GRAD:['IRON_SIGHTS_MAX_APERTURE_USE_GRADIENT',G,'bool'],
+  IRON_MOD:['IRON_SIGHTS_MAX_APERTURE_MODIFIER',G], VERT_BIAS:['VERTICAL_BIAS',G],
+  SCOPE_EFF_MULT:['SCOPE_EFFECTIVENESS_MULTIPLIER',G], SCOPE_EFF_MIN:['SCOPE_EFFECTIVENESS_MINIMUM',G],
+  SCOPE_RANGE_MULT:['SCOPE_RANGE_MULTIPLIER',G], LASER_IRON:['LASER_PERFORMANCE_BONUS_IRON',G],
+  LASER_HIP:['LASER_PERFORMANCE_BONUS_HIP',G], LASER_SCOPE:['LASER_PERFORMANCE_BONUS_SCOPE',G],
+  BASE_EXP:['BASE_EXP',BC], BASE_MARKS:['BASE_MARKS',BC], BASE_WIS:['BASE_WIS',BC], BASE_DEX:['BASE_DEX',BC],
+  BASE_DRAW:['BASE_DRAW_COST',BC], BASE_STAND:['BASE_STANDING_STANCE',BC], BASE_CROUCH:['BASE_CROUCHING_STANCE',BC],
+  BASE_PRONE:['BASE_PRONE_STANCE',BC], BASE_INJURY:['BASE_INJURY',BC], BASE_FATIGUE:['BASE_FATIGUE',BC],
+  BASE_SHOCK:['BASE_SHOCK',BC], BASE_GASSED:['BASE_GASSED',BC], BASE_HIMORALE:['BASE_HIGH_MORALE',BC], BASE_LOMORALE:['BASE_LOW_MORALE',BC],
+  AIM_EXP:['AIM_EXP',AC], AIM_MARKS:['AIM_MARKS',AC], AIM_WIS:['AIM_WIS',AC], AIM_DEX:['AIM_DEX',AC],
+  AIM_DRAW:['AIM_DRAW_COST',AC], AIM_INJURY:['AIM_INJURY',AC], AIM_FATIGUE:['AIM_FATIGUE',AC], AIM_SHOCK:['AIM_SHOCK',AC],
+  AIM_GASSED:['AIM_GASSED',AC], AIM_HIMORALE:['AIM_HIGH_MORALE',AC], AIM_LOMORALE:['AIM_LOW_MORALE',AC],
+  AIM_VISIBILITY:['AIM_VISIBILITY',AC], AIM_TARGET_INVISIBLE:['AIM_TARGET_INVISIBLE',AC],
+  AIM_TOO_CLOSE:['AIM_TOO_CLOSE_SCOPE',AC], AIM_TOO_CLOSE_THRESH:['AIM_TOO_CLOSE_THRESHOLD',AC],
+  MAX_BULLET_DEV:['MAX_BULLET_DEV',SM], RANGE_EFFECTS_DEV:['RANGE_EFFECTS_DEV',SM,'bool'], NORMAL_RECOIL_DIST:['NORMAL_RECOIL_DISTANCE',SM],
+  RC_MAX_STR:['RECOIL_MAX_COUNTER_STR',SM], RC_MAX_AGI:['RECOIL_MAX_COUNTER_AGI',SM], RC_MAX_EXP:['RECOIL_MAX_COUNTER_EXP_LEVEL',SM],
+  RC_MAX_FORCE:['RECOIL_MAX_COUNTER_FORCE',SM], RC_MAX_CROUCH:['RECOIL_MAX_COUNTER_CROUCH',SM], RC_MAX_PRONE:['RECOIL_MAX_COUNTER_PRONE',SM],
+  RCA_DEX:['RECOIL_COUNTER_ACCURACY_DEX',SM], RCA_WIS:['RECOIL_COUNTER_ACCURACY_WIS',SM], RCA_AGI:['RECOIL_COUNTER_ACCURACY_AGI',SM], RCA_EXP:['RECOIL_COUNTER_ACCURACY_EXP_LEVEL',SM],
+  MAX_CTH:['MAXIMUM_POSSIBLE_CTH',JO], MIN_CTH:['MINIMUM_POSSIBLE_CTH',JO],
+};
+const fmtV=(v,bool)=> bool?(v?'TRUE':'FALSE'):(Math.round(v*1000)/1000);
+function iniDiff(s){
+  const d=[];
+  for(const k in INIMAP){ const [ini,sec,bool]=INIMAP[k];
+    if(s.PROP[k]!==DEFAULTS[k]) d.push({k,ini,sec,file:sec===JO?JO:'CTHConstants.ini',cur:DEFAULTS[k],prop:s.PROP[k],bool:bool==='bool'}); }
+  return d;
+}
+function iniText(s){
+  const d=iniDiff(s); if(!d.length) return '';
+  const out=['; ===== Proposed NCTH tuning =====','; Requires NCTH = TRUE (Ja2_Options.INI, [Tactical Gameplay Settings])',''];
+  const byFileSec={};
+  d.forEach(x=>{ const key=x.file+'|'+x.sec; (byFileSec[key]=byFileSec[key]||[]).push(x); });
+  Object.keys(byFileSec).sort().forEach(fs=>{ const [file,sec]=fs.split('|');
+    out.push(`; --- ${file}  [${sec}] ---`);
+    byFileSec[fs].forEach(x=> out.push(`${x.ini} = ${fmtV(x.prop,x.bool)}   ; was ${fmtV(x.cur,x.bool)}`));
+    out.push(''); });
+  return out.join('\n');
+}
+function exportCard(prefix){ prefix=prefix||'exp';
+  return `<div class="card"><h2>Proposed changes <span class="propflag">(vs vanilla)</span></h2>
+    <div id="${prefix}_diff" class="note">No changes yet — edit a slider above.</div>
+    <textarea id="${prefix}_ini" readonly style="width:100%;height:120px;margin-top:8px;background:#0e1219;color:#bfe3ff;border:1px solid #2a3346;border-radius:6px;font:11.5px ui-monospace,Menlo,monospace;padding:8px;display:none"></textarea>
+    <button id="${prefix}_copy" style="display:none;margin-top:8px" class="chip">Copy INI block</button>
+    <span id="${prefix}_msg" style="color:var(--good);font-size:12px;margin-left:8px"></span></div>`;
+}
+function renderExport(s,prefix){ prefix=prefix||'exp';
+  const d=iniDiff(s), diffEl=document.getElementById(prefix+'_diff'), ta=document.getElementById(prefix+'_ini'), btn=document.getElementById(prefix+'_copy');
+  if(!diffEl) return;
+  if(!d.length){ diffEl.innerHTML='No changes yet — edit a slider above.'; ta.style.display='none'; btn.style.display='none'; return; }
+  diffEl.innerHTML='<table style="margin-top:2px"><tr><th>Key</th><th>was</th><th>→ now</th></tr>'+
+    d.map(x=>`<tr><td style="font-family:ui-monospace,monospace;font-size:11px;color:#bfe3ff">${x.ini}</td><td>${fmtV(x.cur,x.bool)}</td><td style="color:var(--prop);font-weight:700">${fmtV(x.prop,x.bool)}</td></tr>`).join('')+'</table>';
+  ta.value=iniText(s); ta.style.display='block'; btn.style.display='inline-block';
+  if(!btn.dataset.wired){ btn.dataset.wired='1'; btn.onclick=()=>{ ta.select();
+    try{ navigator.clipboard.writeText(ta.value); }catch(e){ try{document.execCommand('copy');}catch(_){} }
+    const m=document.getElementById(prefix+'_msg'); if(m){ m.textContent='copied ✓'; setTimeout(()=>m.textContent='',1500); } }; }
+}
+// active non-default modifiers banner
+function banner(s){
+  const b=[];
+  if(s.health<100) b.push(`health ${s.health}%`); if(s.breath<100) b.push(`breath ${s.breath}%`);
+  if(s.shock>0) b.push(`shock ${s.shock}`); if(s.drunk>0) b.push(['tipsy','drunk','wasted','hungover'][s.drunk-1]);
+  if(s.gassed) b.push('gassed'); if(s.morale) b.push(`morale ${s.morale>0?'+':''}${s.morale}`);
+  if(s.vis<100) b.push(`visibility ${s.vis}%`); if(s.bulletdev) b.push('gun-deviation on');
+  const nprop=iniDiff(s).length; if(nprop) b.push(`${nprop} proposed edit${nprop>1?'s':''}`);
+  if(!b.length) return '';
+  return `<div style="max-width:1780px;margin:0 auto;padding:6px 18px"><span style="background:rgba(255,207,92,.12);border:1px solid #4a4327;color:var(--warn);border-radius:8px;padding:5px 10px;font-size:12px">⚙ Active: ${b.join(' · ')} <a href="#" id="banreset" style="color:var(--acc);margin-left:6px">reset shooter</a></span></div>`;
+}
+function wireBannerReset(s,render){ const a=document.getElementById('banreset'); if(!a) return;
+  a.onclick=(e)=>{ e.preventDefault(); const f=freshState();
+    ['health','breath','morale','shock','drunk','gassed','vis','bulletdev'].forEach(k=>s[k]=f[k]);
+    save(s); if(render) render(); }; }
+// heatmap: rows x cols grid colored by value 0..100
+function heatmap(cv, rows, cols, cell, opts){ opts=opts||{};
+  const w=cv.parentElement.clientWidth-28; cv.width=w; cv.style.width=w+'px';
+  const ctx=cv.getContext('2d'), H=cv.height, L=96, T=8, B=22, pw=w-L-8, ph=H-T-B;
+  ctx.clearRect(0,0,w,H); ctx.font='11px sans-serif';
+  const cw=pw/cols.length, chh=ph/rows.length;
+  rows.forEach((r,ri)=>{ cols.forEach((c,ci)=>{ const v=cell(ri,ci);
+      ctx.fillStyle=`hsl(${Math.max(0,Math.min(120,v*1.2))},58%,42%)`;
+      ctx.fillRect(L+ci*cw, T+ri*chh, cw-1, chh-1);
+      if(cw>26){ ctx.fillStyle='#0c1017'; ctx.fillText(Math.round(v), L+ci*cw+cw/2-7, T+ri*chh+chh/2+4); } });
+    ctx.fillStyle='#cdd6e4'; ctx.fillText(r.label, 2, T+ri*chh+chh/2+4); });
+  ctx.fillStyle='#93a1b5';
+  cols.forEach((c,ci)=>{ if(ci%2===0) ctx.fillText(c, L+ci*cw+cw/2-6, H-6); });
+  ctx.fillText(opts.xlabel||'', L+pw/2-20, H-6);
+}
+
 // export
 // representative loadouts (from Weapons.xml / Items.xml)
 const WEAPONS=[
-  {name:'Pistol (Glock 18)',    handling:9,  maxaim:3, gunRecoil:13},
-  {name:'SMG (MP5)',            handling:8,  maxaim:4, gunRecoil:6},
-  {name:'Assault rifle (AK-74)',handling:11, maxaim:4, gunRecoil:7},
-  {name:'Battle rifle (FN FAL)',handling:12, maxaim:5, gunRecoil:9},
-  {name:'LMG (MG36)',           handling:13, maxaim:4, gunRecoil:6},
-  {name:'Shotgun (SPAS-15)',    handling:10, maxaim:3, gunRecoil:6},
-  {name:'Sniper rifle (SVD)',   handling:12, maxaim:6, gunRecoil:0},
+  {name:'Pistol (Glock 18)',    handling:9,  maxaim:3, gunRecoil:13, acc:45, effRange:115},
+  {name:'SMG (MP5)',            handling:8,  maxaim:4, gunRecoil:6,  acc:40, effRange:175},
+  {name:'Assault rifle (AK-74)',handling:11, maxaim:4, gunRecoil:7,  acc:63, effRange:330},
+  {name:'Battle rifle (FN FAL)',handling:12, maxaim:5, gunRecoil:9,  acc:72, effRange:630},
+  {name:'LMG (MG36)',           handling:13, maxaim:4, gunRecoil:6,  acc:67, effRange:365},
+  {name:'Shotgun (SPAS-15)',    handling:10, maxaim:3, gunRecoil:6,  acc:25, effRange:150},
+  {name:'Sniper rifle (SVD)',   handling:12, maxaim:6, gunRecoil:0,  acc:84, effRange:790},
 ];
 const SCOPES=[
   {name:'Iron sights',      sight:'iron',  mag:1},
@@ -294,7 +406,8 @@ const SCOPES=[
 ];
 
 window.NCTH={ DEFAULTS, WEAPONS, SCOPES, load, save, freshState,
-  baseAttr, capAttr, condMods, displayedCTH, effMag, scopeEffMag, scopeMinRange, aperture, hitProb, realHit,
+  baseAttr, capAttr, condMods, displayedCTH, effMag, scopeEffMag, scopeMinRange, aperture, bulletDevRadius, hitProb, realHit,
   cfAccuracy, cfMax, burst, vbias,
-  nav, bind, shooterCard, tuningCard, lineChart, pill, CELL };
+  nav, bind, shooterCard, tuningCard, lineChart, pill, CELL,
+  iniDiff, iniText, exportCard, renderExport, banner, wireBannerReset, heatmap };
 })();

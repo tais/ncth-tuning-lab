@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
 </head><body>
 <div id="nav"></div>
+<div id="banner"></div>
 <div class="intro">
   <h1>Optics — scopes, minimum ranges &amp; lasers</h1>
   <p>Scopes shrink the cone — but only <b>beyond a minimum range</b>. Up close a scope's effective magnification is clamped back toward 1× and you take a "too‑close" aim penalty, so a big scope actually hits <b>worse</b> than iron sights at short range. Each optic has a sweet spot; this shows where. Pick a weapon and compare optics for <i>your</i> shooter.</p>
@@ -43,7 +44,10 @@ document.getElementById('c2').innerHTML =
     <p class="sub">A scope ramps from 1× up to its full power only at its minimum range (dashed = the scope's rated power).</p>
     <canvas id="mag" height="220"></canvas></div>
   <div class="chartbox"><h3>Scope minimum ranges — for this shooter</h3>
-    <table id="tbl"></table></div>`;
+    <table id="tbl"></table></div>
+  <div class="chartbox"><h3>Best optic at each range (real hit %)</h3>
+    <p class="sub">Rows = optic, columns = range (tiles). Greener = higher real hit chance — read across to find each optic's band.</p>
+    <canvas id="heat" height="190"></canvas></div>`;
 
 const TUNE=[
   {label:'SCOPE_RANGE_MULTIPLIER',bind:'PROP.SCOPE_RANGE_MULT',min:.3,max:1.5,step:.05},
@@ -58,7 +62,8 @@ const TUNE=[
 document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE) +
   `<div class="card presets"><h2>Presets</h2><button id="pv">Reset to Vanilla</button>
     <button id="pl">Better optics for recruits</button>
-    <div class="note">"Better optics" raises <code>SCOPE_EFFECTIVENESS_MINIMUM</code> and laser bonuses, and softens the too-close penalty.</div></div>`;
+    <div class="note">"Better optics" raises <code>SCOPE_EFFECTIVENESS_MINIMUM</code> and laser bonuses, and softens the too-close penalty.</div></div>` +
+  N.exportCard();
 document.getElementById('leg').innerHTML=SC.map(o=>`<span><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('');
 
 const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
@@ -82,18 +87,26 @@ function render(){
     const line=hitLine(C,o); let best=line[0]; line.forEach(p=>{ if(p[1]>best[1]) best=p; });
     h+=`<tr><td style="color:${o.c}">${o.n}</td><td>${mr.toFixed(0)} tiles</td><td>${em.toFixed(1)}× / ${o.mag}×</td><td>${best[0]}t (${N.pill(best[1])})</td></tr>`; });
   document.getElementById('tbl').innerHTML=h;
+  const cols=[5,10,15,20,25,30,35,40];
+  N.heatmap(document.getElementById('heat'), SC.map(o=>({label:o.n})), cols, (ri,ci)=>{
+    const o=SC[ri], d=cols[ci];
+    const apR=N.aperture(d*N.CELL,100-N.displayedCTH(s,C,s.maxaim,{dTiles:d,sight:o.sight,mag:o.mag}),C,s,o.sight,o.mag,C.IRON_GRAD)*laserMul(C,o.sight);
+    return 100*N.hitProb(apR,C,s);
+  }, {xlabel:'range (tiles)'});
+  document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
+  N.renderExport(s);
 }
 const root=document.querySelector('.lab');
 N.bind(root,s,render);
 const wsel=document.getElementById('wpn'); wsel.value=s.wpn;
-wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil; N.save(s); render(); };
+wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil; s.acc=w.acc; s.effRange=w.effRange; N.save(s); render(); };
 function refreshProp(){ root.querySelectorAll('[data-bind^="PROP."]').forEach(el=>{ const k=el.dataset.bind.split('.')[1];
   if(el.type==='range'){ el.value=s.PROP[k]; const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; } }); }
 document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); s.PROP=Object.assign({},N.DEFAULTS); N.save(s); refreshProp(); render(); };
 document.getElementById('pl').onclick=()=>{ Object.assign(s.PROP,{SCOPE_EFF_MIN:70,LASER_IRON:25,LASER_SCOPE:20,AIM_TOO_CLOSE:-2}); N.save(s); refreshProp(); render(); };
 window.addEventListener('resize',render);
 // apply current weapon to state on load
-{ const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; }
+{ const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; s.acc=w.acc; s.effRange=w.effRange; }
 render();
 </script>
 </body></html>

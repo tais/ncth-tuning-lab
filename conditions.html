@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
 </head><body>
 <div id="nav"></div>
+<div id="banner"></div>
 <div class="intro">
   <h1>Conditions — hurt, tired, suppressed, drunk</h1>
   <p>Wounds, fatigue, low morale, suppression shock, drink and gas all reduce CTH — some far more than others. They apply as percentage penalties to <b>both</b> the base chance and the aim span. Suppression shock is the biggest (and low‑exp mercs accrue it fastest), which is why a recruit under fire feels helpless.</p>
@@ -55,7 +56,8 @@ const TUNE=[
 document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE) +
   `<div class="card presets"><h2>Presets</h2><button id="pv">Reset to Vanilla</button>
     <button id="ph">Halve suppression penalties</button>
-    <div class="note">Suppression shock is the harshest; halving it makes recruits far less helpless under fire.</div></div>`;
+    <div class="note">Suppression shock is the harshest; halving it makes recruits far less helpless under fire.</div></div>` +
+  N.exportCard();
 
 const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
 const healthy=()=>Object.assign({},s,{health:100,breath:100,morale:0,shock:0,drunk:0,gassed:0});
@@ -81,6 +83,8 @@ function render(){
   h+=`<tr><td><b>Displayed CTH (max aim)</b></td><td>${cthH.toFixed(0)}%→</td><td><b>${cthN.toFixed(0)}%</b></td></tr>`;
   h+=`<tr><td><b>Real hit @10 tiles</b></td><td>${N.pill(100*rH)}→</td><td><b>${N.pill(100*rN)}</b></td></tr>`;
   document.getElementById('brk').innerHTML=h;
+  document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
+  N.renderExport(s);
 }
 const root=document.querySelector('.lab');
 N.bind(root,s,render);
