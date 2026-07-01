@@ -353,21 +353,37 @@ function renderExport(s,prefix){ prefix=prefix||'exp';
     try{ navigator.clipboard.writeText(ta.value); }catch(e){ try{document.execCommand('copy');}catch(_){} }
     const m=document.getElementById(prefix+'_msg'); if(m){ m.textContent='copied ✓'; setTimeout(()=>m.textContent='',1500); } }; }
 }
-// active non-default modifiers banner
-function banner(s){
-  const b=[];
-  if(s.health<100) b.push(`health ${s.health}%`); if(s.breath<100) b.push(`breath ${s.breath}%`);
-  if(s.shock>0) b.push(`shock ${s.shock}`); if(s.drunk>0) b.push(['tipsy','drunk','wasted','hungover'][s.drunk-1]);
-  if(s.gassed) b.push('gassed'); if(s.morale) b.push(`morale ${s.morale>0?'+':''}${s.morale}`);
-  if(s.vis<100) b.push(`visibility ${s.vis}%`); if(s.bulletdev) b.push('gun-deviation on');
-  const nprop=iniDiff(s).length; if(nprop) b.push(`${nprop} proposed edit${nprop>1?'s':''}`);
-  if(!b.length) return '';
-  return `<div style="max-width:1780px;margin:0 auto;padding:6px 18px"><span style="background:rgba(255,207,92,.12);border:1px solid #4a4327;color:var(--warn);border-radius:8px;padding:5px 10px;font-size:12px">⚙ Active: ${b.join(' · ')} <a href="#" id="banreset" style="color:var(--acc);margin-left:6px">reset shooter</a></span></div>`;
+// push every [data-bind] control + [data-seg] toggle back in sync with current state
+function syncControls(root,s){ if(!root) return;
+  const g=p=>p.includes('.')?s[p.split('.')[0]][p.split('.')[1]]:s[p];
+  root.querySelectorAll('[data-bind]').forEach(el=>{ const v=g(el.dataset.bind);
+    if(el.type==='range'||el.type==='number'||el.tagName==='SELECT') el.value=v;
+    const out=el.parentElement.querySelector('.val'); if(out) out.textContent=el.value+(el.dataset.fmt||''); });
+  root.querySelectorAll('[data-seg]').forEach(seg=>{ const v=g(seg.dataset.seg);
+    seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',String(v)===b.dataset.v)); });
 }
-function wireBannerReset(s,render){ const a=document.getElementById('banreset'); if(!a) return;
-  a.onclick=(e)=>{ e.preventDefault(); const f=freshState();
-    ['health','breath','morale','shock','drunk','gassed','vis','bulletdev'].forEach(k=>s[k]=f[k]);
-    save(s); if(render) render(); }; }
+// active non-default modifiers banner — with context-appropriate reset links
+function banner(s){
+  const cond=[];
+  if(s.health<100) cond.push(`health ${s.health}%`); if(s.breath<100) cond.push(`breath ${s.breath}%`);
+  if(s.shock>0) cond.push(`shock ${s.shock}`); if(s.drunk>0) cond.push(['tipsy','drunk','wasted','hungover'][s.drunk-1]);
+  if(s.gassed) cond.push('gassed'); if(s.morale) cond.push(`morale ${s.morale>0?'+':''}${s.morale}`);
+  if(s.vis<100) cond.push(`visibility ${s.vis}%`); if(s.bulletdev) cond.push('gun-deviation');
+  const nprop=iniDiff(s).length;
+  if(!cond.length && !nprop) return '';
+  const link=(id,txt)=>`<a href="#" id="${id}" style="color:var(--acc);margin-left:5px">${txt}</a>`;
+  const parts=[];
+  if(cond.length) parts.push(`${cond.join(' · ')} ${link('banreset','reset conditions')}`);
+  if(nprop) parts.push(`${nprop} proposed edit${nprop>1?'s':''} ${link('banresetedits','reset edits')}`);
+  return `<div style="max-width:1780px;margin:0 auto;padding:6px 18px"><span style="background:rgba(255,207,92,.12);border:1px solid #4a4327;color:var(--warn);border-radius:8px;padding:5px 10px;font-size:12px">⚙ Active: ${parts.join(' &nbsp;•&nbsp; ')}</span></div>`;
+}
+function wireBannerReset(s,render){
+  const root=document.querySelector('.lab');
+  const doReset=fn=>e=>{ e.preventDefault(); fn(); syncControls(root,s); save(s); if(render) render(); };
+  const a=document.getElementById('banreset'); if(a) a.onclick=doReset(()=>{ const f=freshState();
+    ['health','breath','morale','shock','drunk','gassed','vis','bulletdev'].forEach(k=>s[k]=f[k]); });
+  const b=document.getElementById('banresetedits'); if(b) b.onclick=doReset(()=>{ s.PROP=Object.assign({},DEFAULTS); });
+}
 // heatmap: rows x cols grid colored by value 0..100
 function heatmap(cv, rows, cols, cell, opts){ opts=opts||{};
   const w=cv.parentElement.clientWidth-28; cv.width=w; cv.style.width=w+'px';
@@ -409,5 +425,5 @@ window.NCTH={ DEFAULTS, WEAPONS, SCOPES, load, save, freshState,
   baseAttr, capAttr, condMods, displayedCTH, effMag, scopeEffMag, scopeMinRange, aperture, bulletDevRadius, hitProb, realHit,
   cfAccuracy, cfMax, burst, vbias,
   nav, bind, shooterCard, tuningCard, lineChart, pill, CELL,
-  iniDiff, iniText, exportCard, renderExport, banner, wireBannerReset, heatmap };
+  iniDiff, iniText, exportCard, renderExport, banner, wireBannerReset, syncControls, heatmap };
 })();
