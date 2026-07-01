@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="380" viewBox="0 0 720 380" font-family="Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="720" height="380" fill="#161a22"/>
+<text x="52" y="24" fill="#e6ecf5" font-size="16" font-weight="700">The illusion: displayed CTH vs REAL hit chance</text>
+<text x="52" y="40" fill="#93a1b5" font-size="12">Same L4/70 shooter, fully aimed. Cursor % barely moves with range; real hit chance collapses.</text>
+<line x1="52" y1="336" x2="702" y2="336" stroke="#242d3d"/>
+<text x="44" y="340" fill="#93a1b5" font-size="11" text-anchor="end">0</text>
+<line x1="52" y1="278" x2="702" y2="278" stroke="#242d3d"/>
+<text x="44" y="282" fill="#93a1b5" font-size="11" text-anchor="end">20</text>
+<line x1="52" y1="220" x2="702" y2="220" stroke="#242d3d"/>
+<text x="44" y="224" fill="#93a1b5" font-size="11" text-anchor="end">40</text>
+<line x1="52" y1="162" x2="702" y2="162" stroke="#242d3d"/>
+<text x="44" y="166" fill="#93a1b5" font-size="11" text-anchor="end">60</text>
+<line x1="52" y1="104" x2="702" y2="104" stroke="#242d3d"/>
+<text x="44" y="108" fill="#93a1b5" font-size="11" text-anchor="end">80</text>
+<line x1="52" y1="46" x2="702" y2="46" stroke="#242d3d"/>
+<text x="44" y="50" fill="#93a1b5" font-size="11" text-anchor="end">100</text>
+<line x1="52" y1="46" x2="52" y2="336" stroke="#1e2634"/>
+<text x="52" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">0</text>
+<line x1="133" y1="46" x2="133" y2="336" stroke="#1e2634"/>
+<text x="133" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">5</text>
+<line x1="214" y1="46" x2="214" y2="336" stroke="#1e2634"/>
+<text x="214" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">10</text>
+<line x1="296" y1="46" x2="296" y2="336" stroke="#1e2634"/>
+<text x="296" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">15</text>
+<line x1="377" y1="46" x2="377" y2="336" stroke="#1e2634"/>
+<text x="377" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">20</text>
+<line x1="458" y1="46" x2="458" y2="336" stroke="#1e2634"/>
+<text x="458" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">25</text>
+<line x1="540" y1="46" x2="540" y2="336" stroke="#1e2634"/>
+<text x="540" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">30</text>
+<line x1="621" y1="46" x2="621" y2="336" stroke="#1e2634"/>
+<text x="621" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">35</text>
+<line x1="702" y1="46" x2="702" y2="336" stroke="#1e2634"/>
+<text x="702" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">40</text>
+<text x="377" y="374" fill="#93a1b5" font-size="11" text-anchor="middle">range (tiles)</text>
+<polyline fill="none" stroke="#5cc8ff" stroke-width="2.6" points="84.5,172.0 100.8,172.0 117.0,172.0 133.2,172.0 149.5,172.0 165.8,172.0 182.0,172.0 198.2,172.0 214.5,172.0 230.8,172.0 247.0,172.0 263.2,172.0 279.5,172.0 295.8,172.0 312.0,172.0 328.2,172.0 344.5,172.0 360.8,172.0 377.0,172.0 393.2,172.0 409.5,172.0 425.7,172.0 442.0,172.0 458.2,172.0 474.5,172.0 490.8,172.0 507.0,172.0 523.2,172.0 539.5,172.0 555.8,172.0 572.0,172.0 588.2,172.0 604.5,172.0 620.8,172.0 637.0,172.0 653.2,172.0 669.5,172.0 685.8,172.0 702.0,172.0"/>
+<rect x="506" y="51" width="16" height="4" fill="#5cc8ff"/>
+<text x="527" y="55" fill="#cdd6e4" font-size="11.5">Displayed CTH (cursor)</text>
+<polyline fill="none" stroke="#54d98c" stroke-width="2.6" points="84.5,46.0 100.8,46.0 117.0,46.0 133.2,49.9 149.5,78.4 165.8,103.9 182.0,129.4 198.2,151.1 214.5,168.1 230.8,187.6 247.0,198.2 263.2,214.7 279.5,226.4 295.8,234.7 312.0,249.0 328.2,259.0 344.5,268.5 360.8,273.6 377.0,280.4 393.2,283.8 409.5,289.7 425.7,290.1 442.0,296.6 458.2,299.3 474.5,301.6 490.8,303.1 507.0,306.8 523.2,309.4 539.5,308.2 555.8,310.0 572.0,311.3 588.2,312.8 604.5,314.8 620.8,316.9 637.0,317.0 653.2,318.2 669.5,318.3 685.8,319.4 702.0,321.5"/>
+<rect x="506" y="70" width="16" height="4" fill="#54d98c"/>
+<text x="527" y="74" fill="#cdd6e4" font-size="11.5">REAL hit chance</text>
+</svg>

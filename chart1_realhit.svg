@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="380" viewBox="0 0 720 380" font-family="Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="720" height="380" fill="#161a22"/>
+<text x="52" y="24" fill="#e6ecf5" font-size="16" font-weight="700">Real hit chance vs range — what the game actually rolls</text>
+<text x="52" y="40" fill="#93a1b5" font-size="12">L4 exp / 70 marks, standing, iron sights, Expert difficulty. Cursor shows ~57% at all ranges.</text>
+<line x1="52" y1="336" x2="702" y2="336" stroke="#242d3d"/>
+<text x="44" y="340" fill="#93a1b5" font-size="11" text-anchor="end">0</text>
+<line x1="52" y1="278" x2="702" y2="278" stroke="#242d3d"/>
+<text x="44" y="282" fill="#93a1b5" font-size="11" text-anchor="end">20</text>
+<line x1="52" y1="220" x2="702" y2="220" stroke="#242d3d"/>
+<text x="44" y="224" fill="#93a1b5" font-size="11" text-anchor="end">40</text>
+<line x1="52" y1="162" x2="702" y2="162" stroke="#242d3d"/>
+<text x="44" y="166" fill="#93a1b5" font-size="11" text-anchor="end">60</text>
+<line x1="52" y1="104" x2="702" y2="104" stroke="#242d3d"/>
+<text x="44" y="108" fill="#93a1b5" font-size="11" text-anchor="end">80</text>
+<line x1="52" y1="46" x2="702" y2="46" stroke="#242d3d"/>
+<text x="44" y="50" fill="#93a1b5" font-size="11" text-anchor="end">100</text>
+<line x1="52" y1="46" x2="52" y2="336" stroke="#1e2634"/>
+<text x="52" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">0</text>
+<line x1="133" y1="46" x2="133" y2="336" stroke="#1e2634"/>
+<text x="133" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">5</text>
+<line x1="214" y1="46" x2="214" y2="336" stroke="#1e2634"/>
+<text x="214" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">10</text>
+<line x1="296" y1="46" x2="296" y2="336" stroke="#1e2634"/>
+<text x="296" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">15</text>
+<line x1="377" y1="46" x2="377" y2="336" stroke="#1e2634"/>
+<text x="377" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">20</text>
+<line x1="458" y1="46" x2="458" y2="336" stroke="#1e2634"/>
+<text x="458" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">25</text>
+<line x1="540" y1="46" x2="540" y2="336" stroke="#1e2634"/>
+<text x="540" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">30</text>
+<line x1="621" y1="46" x2="621" y2="336" stroke="#1e2634"/>
+<text x="621" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">35</text>
+<line x1="702" y1="46" x2="702" y2="336" stroke="#1e2634"/>
+<text x="702" y="352" fill="#93a1b5" font-size="11" text-anchor="middle">40</text>
+<text x="377" y="374" fill="#93a1b5" font-size="11" text-anchor="middle">range (tiles)</text>
+<polyline fill="none" stroke="#54d98c" stroke-width="2.6" points="84.5,46.0 100.8,46.0 117.0,46.0 133.2,49.4 149.5,75.0 165.8,104.3 182.0,130.5 198.2,147.2 214.5,168.9 230.8,188.0 247.0,202.0 263.2,215.3 279.5,225.4 295.8,236.4 312.0,249.7 328.2,255.4 344.5,266.2 360.8,273.6 377.0,281.6 393.2,284.0 409.5,288.9 425.7,292.1 442.0,296.8 458.2,298.6 474.5,301.0 490.8,303.9 507.0,304.9 523.2,307.4 539.5,309.8 555.8,310.8 572.0,312.2 588.2,313.5 604.5,315.5 620.8,316.1 637.0,318.4 653.2,318.6 669.5,318.7 685.8,320.9 702.0,320.6"/>
+<rect x="506" y="51" width="16" height="4" fill="#54d98c"/>
+<text x="527" y="55" fill="#cdd6e4" font-size="11.5">L4/70 max aim (CURRENT)</text>
+<polyline fill="none" stroke="#5cc8ff" stroke-width="2.6" points="84.5,46.0 100.8,97.8 117.0,149.4 133.2,186.6 149.5,213.2 165.8,241.1 182.0,261.0 198.2,275.3 214.5,286.9 230.8,294.7 247.0,301.2 263.2,305.9 279.5,309.0 295.8,313.9 312.0,315.1 328.2,317.5 344.5,320.1 360.8,320.5 377.0,324.0 393.2,323.9 409.5,324.7 425.7,326.1 442.0,326.7 458.2,326.6 474.5,327.8 490.8,327.0 507.0,329.4 523.2,330.7 539.5,330.0 555.8,330.2 572.0,330.7 588.2,330.5 604.5,330.2 620.8,331.7 637.0,331.8 653.2,331.5 669.5,332.3 685.8,332.4 702.0,333.0"/>
+<rect x="506" y="70" width="16" height="4" fill="#5cc8ff"/>
+<text x="527" y="74" fill="#cdd6e4" font-size="11.5">L4/70 snap / 0 aim</text>
+<polyline fill="none" stroke="#c58cff" stroke-width="2.6" points="84.5,46.0 100.8,46.0 117.0,46.0 133.2,46.0 149.5,46.0 165.8,53.8 182.0,74.6 198.2,93.9 214.5,116.3 230.8,133.6 247.0,150.5 263.2,162.6 279.5,175.1 295.8,186.8 312.0,199.6 328.2,207.4 344.5,216.3 360.8,227.1 377.0,233.7 393.2,240.9 409.5,249.0 425.7,257.4 442.0,263.5 458.2,270.1 474.5,274.2 490.8,278.5 507.0,281.0 523.2,285.3 539.5,287.9 555.8,293.8 572.0,293.7 588.2,295.8 604.5,298.8 620.8,300.8 637.0,303.7 653.2,304.1 669.5,305.3 685.8,308.0 702.0,307.6" stroke-dasharray="7,4"/>
+<rect x="506" y="89" width="16" height="4" fill="#c58cff"/>
+<text x="527" y="93" fill="#cdd6e4" font-size="11.5">L4/70 max aim (PROPOSED)</text>
+<polyline fill="none" stroke="#ffcf5c" stroke-width="2.6" points="84.5,46.0 100.8,46.0 117.0,46.0 133.2,46.0 149.5,46.0 165.8,46.0 182.0,46.0 198.2,54.0 214.5,68.8 230.8,87.0 247.0,104.1 263.2,119.1 279.5,132.9 295.8,143.4 312.0,157.3 328.2,167.1 344.5,177.4 360.8,187.3 377.0,194.0 393.2,202.7 409.5,212.3 425.7,220.5 442.0,226.7 458.2,231.7 474.5,240.0 490.8,246.0 507.0,254.2 523.2,256.9 539.5,260.6 555.8,268.0 572.0,273.3 588.2,275.2 604.5,277.3 620.8,282.2 637.0,286.8 653.2,286.1 669.5,289.8 685.8,292.6 702.0,295.7"/>
+<rect x="506" y="108" width="16" height="4" fill="#ffcf5c"/>
+<text x="527" y="112" fill="#cdd6e4" font-size="11.5">L6/90 max aim (veteran)</text>
+</svg>

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>JA2 1.13 — NCTH Tuning Lab</title>
+<style>
+  :root{
+    --bg:#12151b; --panel:#1b202b; --panel2:#232a38; --ink:#e6ecf5; --mut:#93a1b5;
+    --acc:#5cc8ff; --good:#54d98c; --warn:#ffcf5c; --bad:#ff6b6b; --prop:#c58cff; --grid:#2c3444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  header{padding:18px 22px;background:linear-gradient(90deg,#1b2536,#161a22);border-bottom:1px solid #2b3547}
+  header h1{margin:0;font-size:19px;letter-spacing:.3px}
+  header p{margin:4px 0 0;color:var(--mut);font-size:13px}
+  .wrap{display:grid;grid-template-columns:380px 1fr;gap:16px;padding:16px;max-width:1520px;margin:0 auto}
+  @media(max-width:1050px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid #2a3346;border-radius:10px;padding:14px 16px;margin-bottom:14px}
+  .card h2{margin:0 0 12px;font-size:14px;text-transform:uppercase;letter-spacing:.6px;color:var(--acc)}
+  /* label sits ABOVE a full-width slider; value aligns right on the label line */
+  .row{display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 10px;margin:12px 0}
+  .row label{order:1;flex:1 1 auto;color:var(--mut);white-space:normal;line-height:1.3;font-size:12.5px}
+  .row .val{order:2;flex:0 0 auto;font-variant-numeric:tabular-nums;min-width:40px;text-align:right;color:var(--ink);font-weight:700}
+  .row input[type=range],.row select,.row .seg{order:3;flex:1 1 100%;min-width:0}
+  input[type=range]{width:100%;accent-color:var(--acc);height:20px;margin:3px 0 0}
+  .row select{width:100%}
+  select,input[type=number]{background:var(--panel2);color:var(--ink);border:1px solid #37425a;border-radius:6px;padding:4px 6px}
+  .seg{display:flex;gap:4px;flex-wrap:wrap}
+  .seg button{background:var(--panel2);color:var(--mut);border:1px solid #37425a;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:12px}
+  .seg button.on{background:var(--acc);color:#06202e;border-color:var(--acc);font-weight:700}
+  .chartbox{background:var(--panel);border:1px solid #2a3346;border-radius:10px;padding:12px 14px;margin-bottom:14px}
+  .chartbox h3{margin:0 0 2px;font-size:14px}
+  .chartbox .sub{color:var(--mut);font-size:12px;margin:0 0 8px}
+  canvas{width:100%;display:block}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:6px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:14px;height:3px;border-radius:2px;display:inline-block}
+  .presets button{background:var(--panel2);border:1px solid #37425a;color:var(--ink);border-radius:7px;padding:7px 10px;cursor:pointer;margin:0 6px 6px 0;font-size:12px}
+  .presets button:hover{border-color:var(--acc)}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
+  th,td{border:1px solid #2c3444;padding:5px 7px;text-align:right}
+  th{background:var(--panel2);color:var(--mut);font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  .pill{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:700}
+  .p-good{background:rgba(84,217,140,.15);color:var(--good)}
+  .p-warn{background:rgba(255,207,92,.15);color:var(--warn)}
+  .p-bad{background:rgba(255,107,107,.15);color:var(--bad)}
+  details{margin-top:8px}
+  summary{cursor:pointer;color:var(--acc);font-size:12px}
+  .note{color:var(--mut);font-size:12px;margin-top:8px;border-left:2px solid #37425a;padding-left:10px}
+  code{background:#0e1219;border:1px solid #2a3346;border-radius:4px;padding:1px 5px;color:#bfe3ff}
+  .grp{border-top:1px dashed #303a4d;margin-top:10px;padding-top:8px}
+  .grp:first-of-type{border:0;margin:0;padding:0}
+  .propflag{color:var(--prop);font-size:11px}
+  b.diff{color:var(--prop)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Jagged Alliance 2 v1.13 — New Chance-To-Hit (NCTH) Tuning Lab</h1>
+  <p>Interactive model of HEADROCK's NCTH shooting system, built directly from <code>Weapons.cpp</code>, <code>LOS.cpp</code> and <code>CTHConstants.ini</code>.
+     The <b>green/blue "CURRENT"</b> curves use the mod's live values; the <b style="color:var(--prop)">purple "PROPOSED"</b> curves overlay your experimental tuning so you can compare before touching the INI.</p>
+  <p style="margin-top:8px"><a href="report.html" style="color:var(--acc);font-weight:600;text-decoration:none">📄 Read the full analysis &amp; tuning report →</a></p>
+</header>
+
+<div class="wrap">
+  <!-- ================= LEFT: CONTROLS ================= -->
+  <div>
+    <div class="card">
+      <h2>The Shooter</h2>
+      <div class="row"><label>Experience level</label><input id="exp" type="range" min="1" max="10" step="1" value="4"><span class="val" id="exp_v">4</span></div>
+      <div class="row"><label>Marksmanship</label><input id="marks" type="range" min="0" max="100" step="1" value="70"><span class="val" id="marks_v">70</span></div>
+      <div class="row"><label>Dexterity</label><input id="dex" type="range" min="0" max="100" step="1" value="70"><span class="val" id="dex_v">70</span></div>
+      <div class="row"><label>Wisdom</label><input id="wis" type="range" min="0" max="100" step="1" value="70"><span class="val" id="wis_v">70</span></div>
+      <div class="row"><label>Stance</label>
+        <div class="seg" id="stance">
+          <button data-v="stand" class="on">Stand</button><button data-v="crouch">Crouch</button><button data-v="prone">Prone</button>
+        </div></div>
+      <div class="row"><label>Sight</label>
+        <div class="seg" id="sight">
+          <button data-v="iron" class="on">Iron</button><button data-v="scope">Scope</button>
+        </div></div>
+      <div class="row" id="scoperow" style="display:none"><label>Scope magnification</label><input id="mag" type="range" min="1" max="10" step="0.5" value="4"><span class="val" id="mag_v">4×</span></div>
+    </div>
+
+    <div class="card">
+      <h2>The Gun &amp; Situation</h2>
+      <div class="row"><label>Weapon handling (rifle≈11)</label><input id="handling" type="range" min="4" max="22" step="1" value="11"><span class="val" id="handling_v">11</span></div>
+      <div class="row"><label>Max aim clicks (gun)</label><input id="maxaim" type="range" min="2" max="8" step="1" value="6"><span class="val" id="maxaim_v">6</span></div>
+      <div class="row"><label>Difficulty</label>
+        <select id="diff">
+          <option value="1">Novice</option><option value="2">Experienced</option>
+          <option value="3" selected>Expert</option><option value="4">Insane</option>
+        </select></div>
+      <div class="row"><label>Campaign progress %</label><input id="prog" type="range" min="0" max="100" step="5" value="0"><span class="val" id="prog_v">0</span></div>
+      <div class="row"><label>Other condition mod % (injury/morale…)</label><input id="cond" type="range" min="-60" max="20" step="5" value="0"><span class="val" id="cond_v">0</span></div>
+      <div class="note">Handling &amp; stance drive the gun-difficulty penalty exactly as in <code>CalcNewChanceToHit…WeaponBonus</code> (AP_MAXIMUM=100 ⇒ gun-difficulty ≈ handling). The difficulty + progress sliders reproduce the asymmetric <code>CthConstants…DifficultyPlayer</code> bonus that fades out by 30% progress.</div>
+    </div>
+
+    <div class="card">
+      <h2>Target silhouette (units, 1 tile=10)</h2>
+      <div class="row"><label>Half-width</label><input id="tw" type="range" min="1.5" max="6" step="0.5" value="3.5"><span class="val" id="tw_v">3.5</span></div>
+      <div class="row"><label>Half-height</label><input id="th" type="range" min="4" max="14" step="0.5" value="10"><span class="val" id="th_v">10</span></div>
+      <div class="note">The bullet "hits" if the randomly-swayed muzzle point lands on the body silhouette. Wider/taller = easier. Defaults ≈ a whole standing man.</div>
+    </div>
+
+    <div class="card">
+      <h2>CTHConstants.ini <span class="propflag">(edit = PROPOSED)</span></h2>
+      <div class="grp">
+        <div class="row"><label>DEGREES_MAXIMUM_APERTURE</label><input id="DEG_APERTURE" type="range" min="5" max="22.5" step="0.5" value="15"><span class="val" id="DEG_APERTURE_v">15</span></div>
+        <div class="row"><label>NORMAL_SHOOTING_DISTANCE</label><input id="NORMAL_DIST" type="range" min="30" max="150" step="5" value="70"><span class="val" id="NORMAL_DIST_v">70</span></div>
+        <div class="row"><label>IRON_SIGHT_PERFORMANCE_BONUS</label><input id="IRON_PERF" type="range" min="-20" max="50" step="5" value="20"><span class="val" id="IRON_PERF_v">20</span></div>
+        <div class="row"><label>IRON…MAX_APERTURE_USE_GRADIENT</label>
+          <div class="seg" id="IRON_GRADIENT"><button data-v="1" class="on">On</button><button data-v="0">Off</button></div></div>
+        <div class="row"><label>IRON…MAX_APERTURE_MODIFIER</label><input id="IRON_MOD" type="range" min="2" max="5" step="0.25" value="3"><span class="val" id="IRON_MOD_v">3</span></div>
+        <div class="row"><label>VERTICAL_BIAS</label><input id="VERT_BIAS" type="range" min="0.2" max="1" step="0.05" value="0.5"><span class="val" id="VERT_BIAS_v">0.5</span></div>
+      </div>
+      <div class="grp">
+        <div class="row"><label>BASE_EXP</label><input id="BASE_EXP" type="range" min="0" max="6" step="0.5" value="3"><span class="val" id="BASE_EXP_v">3</span></div>
+        <div class="row"><label>BASE_MARKS</label><input id="BASE_MARKS" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="BASE_MARKS_v">1</span></div>
+        <div class="row"><label>BASE_WIS</label><input id="BASE_WIS" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="BASE_WIS_v">1</span></div>
+        <div class="row"><label>BASE_DEX</label><input id="BASE_DEX" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="BASE_DEX_v">1</span></div>
+        <div class="row"><label>BASE_DRAW_COST</label><input id="BASE_DRAW" type="range" min="0" max="4" step="0.25" value="2"><span class="val" id="BASE_DRAW_v">2</span></div>
+      </div>
+      <div class="grp">
+        <div class="row"><label>AIM_EXP</label><input id="AIM_EXP" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="AIM_EXP_v">1</span></div>
+        <div class="row"><label>AIM_MARKS</label><input id="AIM_MARKS" type="range" min="0" max="6" step="0.5" value="3"><span class="val" id="AIM_MARKS_v">3</span></div>
+        <div class="row"><label>AIM_WIS</label><input id="AIM_WIS" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="AIM_WIS_v">1</span></div>
+        <div class="row"><label>AIM_DEX</label><input id="AIM_DEX" type="range" min="0" max="6" step="0.5" value="2"><span class="val" id="AIM_DEX_v">2</span></div>
+        <div class="row"><label>AIM_DRAW_COST</label><input id="AIM_DRAW" type="range" min="0" max="4" step="0.25" value="1"><span class="val" id="AIM_DRAW_v">1</span></div>
+      </div>
+      <div class="grp">
+        <div class="row"><label>MAXIMUM_POSSIBLE_CTH</label><input id="MAX_CTH" type="range" min="80" max="100" step="1" value="99"><span class="val" id="MAX_CTH_v">99</span></div>
+        <div class="row"><label>MINIMUM_POSSIBLE_CTH</label><input id="MIN_CTH" type="range" min="0" max="25" step="1" value="0"><span class="val" id="MIN_CTH_v">0</span></div>
+      </div>
+    </div>
+
+    <div class="card presets">
+      <h2>Presets</h2>
+      <button onclick="applyPreset('vanilla')">Reset both to Vanilla</button>
+      <button onclick="applyPreset('lowbuff')">Load "Low-level buff" → PROPOSED</button>
+      <button onclick="applyPreset('tighten')">Load "Tighter cone" → PROPOSED</button>
+      <div class="note">Presets change only the <b class="diff">PROPOSED</b> (purple) values so you can compare against CURRENT. "Reset" copies vanilla into both.</div>
+    </div>
+  </div>
+
+  <!-- ================= RIGHT: OUTPUT ================= -->
+  <div>
+    <div class="chartbox">
+      <h3>Real chance to actually HIT vs range</h3>
+      <p class="sub">Monte-Carlo of the real shot: muzzle sway = (100 − displayed CTH), a random point drawn <code>sqrt(uniform)</code> inside the aperture disk, tested against the target silhouette. This is what the game truly rolls — <i>not</i> the number on the cursor.</p>
+      <canvas id="hitChart" height="300"></canvas>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--good)"></i>CURRENT · max aim</span>
+        <span><i class="swatch" style="background:var(--acc)"></i>CURRENT · snap (0 aim)</span>
+        <span><i class="swatch" style="background:var(--prop)"></i>PROPOSED · max aim</span>
+        <span><i class="swatch" style="background:#7a6cff;opacity:.7"></i>PROPOSED · snap</span>
+      </div>
+    </div>
+
+    <div class="chartbox">
+      <h3>Displayed CTH (cursor %) vs range</h3>
+      <p class="sub">What the aiming cursor shows. Note how it can diverge from the real hit chart above — high displayed CTH near the "guaranteed" threshold hits far more often than the number implies; mid values hit far less.</p>
+      <canvas id="cthChart" height="240"></canvas>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--good)"></i>CURRENT · max aim</span>
+        <span><i class="swatch" style="background:var(--acc)"></i>CURRENT · snap</span>
+        <span><i class="swatch" style="background:var(--prop)"></i>PROPOSED · max aim</span>
+      </div>
+    </div>
+
+    <div class="wrap" style="grid-template-columns:1fr 1fr;padding:0;gap:14px;max-width:none">
+      <div class="chartbox" style="margin:0">
+        <h3>Aperture vs target</h3>
+        <p class="sub">The blue disk is where the muzzle may point at <span id="apr_range">10</span> tiles, max aim (CURRENT). Green box = target silhouette. Dots = 250 sample shots.</p>
+        <canvas id="apChart" height="260"></canvas>
+        <div class="row"><label>Range for this view (tiles)</label><input id="aprange" type="range" min="2" max="40" step="1" value="10"><span class="val" id="aprange_v">10</span></div>
+      </div>
+      <div class="chartbox" style="margin:0">
+        <h3>The pipeline for this shooter</h3>
+        <p class="sub">Numbers for the current shooter at <span id="tbl_range">10</span> tiles, max aim.</p>
+        <table id="pipe"></table>
+      </div>
+    </div>
+
+    <div class="chartbox">
+      <h3>Snapshot table — CURRENT values</h3>
+      <table id="snap"></table>
+      <div class="note" id="verdict"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CELL=10, RAD=Math.PI/180, N_MC=4000;
+// per-difficulty asymmetric CTH modifiers (DifficultySettings.xml). index 1..4.
+const DIFF={1:{player:20},2:{player:10},3:{player:0},4:{player:0}}; // base & aim player use same values in the mod
+// -------- state: two parameter sets --------
+const IDS_C=['DEG_APERTURE','NORMAL_DIST','IRON_PERF','IRON_MOD','VERT_BIAS','BASE_EXP','BASE_MARKS','BASE_WIS','BASE_DEX','BASE_DRAW','AIM_EXP','AIM_MARKS','AIM_WIS','AIM_DEX','AIM_DRAW','MAX_CTH','MIN_CTH'];
+const VANILLA={DEG_APERTURE:15,NORMAL_DIST:70,IRON_PERF:20,IRON_GRADIENT:1,IRON_MOD:3,VERT_BIAS:.5,BASE_EXP:3,BASE_MARKS:1,BASE_WIS:1,BASE_DEX:1,BASE_DRAW:2,AIM_EXP:1,AIM_MARKS:3,AIM_WIS:1,AIM_DEX:2,AIM_DRAW:1,MAX_CTH:99,MIN_CTH:0};
+let CUR=Object.assign({},VANILLA);   // "current" (green/blue) — vanilla by default
+let PROP=Object.assign({},VANILLA);  // "proposed" (purple) — edited by sliders
+
+// merc/situation
+const S=()=>({exp:+g('exp'),marks:+g('marks'),dex:+g('dex'),wis:+g('wis')});
+function g(id){return document.getElementById(id).value;}
+let stance='stand', sight='iron', gradientProp=1;
+
+// ---------- model (faithful to source) ----------
+function baseAttr(s,C){let f=C.BASE_EXP*s.exp*10+C.BASE_MARKS*s.marks+C.BASE_DEX*s.dex+C.BASE_WIS*s.wis;
+  f/=(C.BASE_EXP+C.BASE_MARKS+C.BASE_DEX+C.BASE_WIS);return f/3;}
+function capAttr(s,C){let f=C.AIM_EXP*s.exp*10+C.AIM_MARKS*s.marks+C.AIM_DEX*s.dex+C.AIM_WIS*s.wis;
+  f/=(C.AIM_EXP+C.AIM_MARKS+C.AIM_DEX+C.AIM_WIS);return f;}
+function stanceBase(){return stance==='stand'?2:stance==='crouch'?3:4;}   // BASE_*_STANCE
+function stanceAim(){return stance==='stand'?1.5:stance==='crouch'?1.25:1;} // AIM_*_STANCE
+function playerDiffBonus(){const d=+g('diff'),p=+g('prog');return Math.max(0,30-p)*(DIFF[d].player)/30;}
+
+// displayed CTH at aim level t
+function displayedCTH(s,C,t,handling,maxaim){
+  let base=baseAttr(s,C);
+  if(base<=C.MIN_CTH) return C.MIN_CTH;
+  const gunBase=handling*stanceBase();
+  const cond=+g('cond');
+  let baseMod=-(gunBase*C.BASE_DRAW)+playerDiffBonus()+cond;
+  base=base*(100+baseMod)/100; base=Math.max(0,Math.min(100,base));
+  if(t<=0) return Math.max(C.MIN_CTH,Math.min(base,C.MAX_CTH));
+  let cap=capAttr(s,C);
+  cap=Math.max(cap,Math.max(0,base)); cap=Math.min(cap,C.MAX_CTH);
+  const gunAim=handling*stanceAim();
+  let aimMod=-(C.AIM_DRAW*gunAim)+playerDiffBonus()+cond;
+  let maxBonus=(cap-base)*(100+aimMod)/100; maxBonus=Math.max(0,maxBonus);
+  const div=maxaim*(maxaim+1)/2; const frac=maxBonus/div;
+  let pts=0; for(let x=0;x<t;x++) pts+=frac*(maxaim-x);
+  let fin=Math.max(base+pts,base); fin=Math.min(fin,cap); fin=Math.min(fin,C.MAX_CTH); fin=Math.max(fin,C.MIN_CTH);
+  return fin;
+}
+// effective scope magnification (CalcEffectiveMagFactor, no trait minimums)
+function effMag(s,C,mag){
+  if(mag<=1) return 1;
+  const maxEff=mag*1.1; // SCOPE_EFFECTIVENESS_MULTIPLIER
+  const fixed=maxEff*50/100; // SCOPE_EFFECTIVENESS_MINIMUM=50
+  const variable=maxEff*50/100*((s.exp*10*C.AIM_EXP+s.marks*C.AIM_MARKS)/(C.AIM_EXP+C.AIM_MARKS)/100);
+  return Math.min(maxEff,Math.max(fixed+variable,0.1));
+}
+// aperture radius (units) at distance dUnits given muzzle sway
+function apertureRadius(dUnits,sway,C,s,useGradient){
+  let basic=Math.sin(C.DEG_APERTURE*RAD)*C.NORMAL_DIST;
+  const dTiles=dUnits/CELL;
+  let mag=1;
+  if(sight==='scope'){mag=effMag(s,C,+g('mag'));}
+  if(sight==='iron'){
+    if(useGradient) basic=basic*(1/Math.sqrt(dTiles)/C.IRON_MOD+(C.IRON_MOD-1)/C.IRON_MOD);
+    basic=basic*(100-C.IRON_PERF)/100;
+  }
+  let distAp=basic*(dUnits/C.NORMAL_DIST);
+  let maxAp=distAp/mag;
+  return Math.max(0,maxAp*sway/100);
+}
+function vbias(C){return stance==='stand'?1.0:stance==='prone'?C.VERT_BIAS:1.0+(C.VERT_BIAS-1)*0.66;}
+// Monte-Carlo real hit chance
+function hitProb(apR,C){
+  if(apR<=0) return 1;
+  const tw=+g('tw'),th=+g('th'),vb=vbias(C); let h=0;
+  for(let i=0;i<N_MC;i++){
+    const r=Math.sqrt(Math.random()), a=Math.random()*2*Math.PI;
+    const dx=Math.sin(a)*r*apR, dy=Math.cos(a)*r*apR*vb;
+    if((dx*dx)/(tw*tw)+(dy*dy)/(th*th)<=1) h++;
+  }
+  return h/N_MC;
+}
+function realHit(s,C,dTiles,t,useGrad,handling,maxaim){
+  const cth=displayedCTH(s,C,t,handling,maxaim);
+  const sway=100-cth;
+  const apR=apertureRadius(dTiles*CELL,sway,C,s,useGrad);
+  return {cth,sway,apR,p:hitProb(apR,C)};
+}
+
+// ---------- charts ----------
+function line(ctx,pts,color,w,dash){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=w||2;if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.stroke();ctx.restore();}
+function axes(cv,x0,y0,x1,y1,xmax,ymax,xlab,ylab,ystep){
+  const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.strokeStyle='#2c3444';ctx.fillStyle='#93a1b5';ctx.font='11px sans-serif';ctx.lineWidth=1;
+  for(let v=0;v<=ymax;v+=ystep){const y=y1-(v/ymax)*(y1-y0);ctx.strokeStyle='#222b3a';
+    ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();
+    ctx.fillText(v+(ylab==='%'?'':''),4,y+3);}
+  for(let v=0;v<=xmax;v+=5){const x=x0+(v/xmax)*(x1-x0);ctx.strokeStyle='#222b3a';
+    ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.fillText(v,x-4,y1+14);}
+  ctx.fillStyle='#93a1b5';ctx.fillText(xlab,(x0+x1)/2-30,y1+26);
+  return ctx;
+}
+function series(fn,xmax){const a=[];for(let d=2;d<=xmax;d++)a.push([d,fn(d)]);return a;}
+function toPix(a,x0,y0,x1,y1,xmax,ymax){return a.map(p=>[x0+(p[0]/xmax)*(x1-x0), y1-(Math.min(p[1],ymax)/ymax)*(y1-y0)]);}
+
+const XMAX=40;
+function draw(){
+  const s=S(),handling=+g('handling'),maxaim=+g('maxaim');
+  // HIT chart
+  let cv=document.getElementById('hitChart');fit(cv);
+  let x0=34,y0=10,x1=cv.width-10,y1=cv.height-30;
+  let ctx=axes(cv,x0,y0,x1,y1,XMAX,100,'range (tiles)','%',20);
+  const grC=VANILLA.IRON_GRADIENT, grP=gradientProp;
+  line(ctx,toPix(series(d=>100*realHit(s,CUR,d,maxaim,grC,handling,maxaim).p,XMAX),x0,y0,x1,y1,XMAX,100),'#54d98c',2.5);
+  line(ctx,toPix(series(d=>100*realHit(s,CUR,d,0,grC,handling,maxaim).p,XMAX),x0,y0,x1,y1,XMAX,100),'#5cc8ff',2);
+  line(ctx,toPix(series(d=>100*realHit(s,PROP,d,maxaim,grP,handling,maxaim).p,XMAX),x0,y0,x1,y1,XMAX,100),'#c58cff',2.5,[6,4]);
+  line(ctx,toPix(series(d=>100*realHit(s,PROP,d,0,grP,handling,maxaim).p,XMAX),x0,y0,x1,y1,XMAX,100),'#7a6cff',1.6,[3,3]);
+  // CTH chart
+  cv=document.getElementById('cthChart');fit(cv);
+  x1=cv.width-10;y1=cv.height-30;
+  ctx=axes(cv,x0,y0,x1,y1,XMAX,100,'range (tiles)','%',20);
+  line(ctx,toPix(series(d=>realHit(s,CUR,d,maxaim,grC,handling,maxaim).cth,XMAX),x0,y0,x1,y1,XMAX,100),'#54d98c',2.5);
+  line(ctx,toPix(series(d=>realHit(s,CUR,d,0,grC,handling,maxaim).cth,XMAX),x0,y0,x1,y1,XMAX,100),'#5cc8ff',2);
+  line(ctx,toPix(series(d=>realHit(s,PROP,d,maxaim,grP,handling,maxaim).cth,XMAX),x0,y0,x1,y1,XMAX,100),'#c58cff',2.5,[6,4]);
+  drawAperture(s,handling,maxaim,grC);
+  fillTables(s,handling,maxaim,grC);
+}
+function drawAperture(s,handling,maxaim,grC){
+  const cv=document.getElementById('apChart');fit(cv);const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const dT=+g('aprange');document.getElementById('apr_range').textContent=dT;
+  const r=realHit(s,CUR,dT,maxaim,grC,handling,maxaim);
+  const cx=cv.width/2, cy=cv.height/2, scale=Math.min(cv.width,cv.height)/2/Math.max(r.apR*1.15,+g('th')*1.2,8);
+  // disk
+  ctx.fillStyle='rgba(92,200,255,.10)';ctx.strokeStyle='rgba(92,200,255,.6)';
+  ctx.beginPath();ctx.ellipse(cx,cy,r.apR*scale,r.apR*scale*vbias(CUR),0,0,2*Math.PI);ctx.fill();ctx.stroke();
+  // target
+  const tw=+g('tw')*scale, th=+g('th')*scale;
+  ctx.strokeStyle='rgba(84,217,140,.9)';ctx.lineWidth=2;ctx.strokeRect(cx-tw,cy-th,2*tw,2*th);
+  // sample dots
+  const vb=vbias(CUR);
+  const twU=+g('tw'), thU=+g('th');
+  for(let i=0;i<250;i++){const rr=Math.sqrt(Math.random()),a=Math.random()*2*Math.PI;
+    const dx=Math.sin(a)*rr*r.apR, dy=Math.cos(a)*rr*r.apR*vb;
+    const hit=(dx*dx)/(twU*twU)+(dy*dy)/(thU*thU)<=1;
+    ctx.fillStyle=hit?'#54d98c':'#ff6b6b';ctx.globalAlpha=.75;
+    ctx.beginPath();ctx.arc(cx+dx*scale,cy+dy*scale,1.7,0,2*Math.PI);ctx.fill();}
+  ctx.globalAlpha=1;
+}
+function fillTables(s,handling,maxaim,grC){
+  const dT=+g('aprange');document.getElementById('tbl_range').textContent=dT;
+  const r=realHit(s,CUR,dT,maxaim,grC,handling,maxaim);
+  const base=displayedCTH(s,CUR,0,handling,maxaim);
+  document.getElementById('pipe').innerHTML=
+    row('Base CTH (skills, before aim)',base.toFixed(1)+' %')+
+    row('CTH cap (max possible)',Math.min(capAttr(s,CUR),CUR.MAX_CTH).toFixed(1)+' %')+
+    row('Displayed CTH @ max aim',r.cth.toFixed(1)+' %')+
+    row('→ Muzzle sway (100−CTH)',r.sway.toFixed(0))+
+    row('Aperture radius',r.apR.toFixed(1)+' units')+
+    row('Target half-width',(+g('tw')).toFixed(1)+' units')+
+    row('<b>Real hit chance</b>','<b>'+(100*r.p).toFixed(0)+' %</b>');
+  // snapshot table across ranges
+  let html='<tr><th>Range</th><th>Base CTH</th><th>Disp CTH<br>(max aim)</th><th>Real hit<br>snap</th><th>Real hit<br>max aim</th></tr>';
+  [5,10,15,20,25,30].forEach(d=>{
+    const snap=realHit(s,CUR,d,0,grC,handling,maxaim), aim=realHit(s,CUR,d,maxaim,grC,handling,maxaim);
+    html+=`<tr><td>${d} tiles</td><td>${base.toFixed(0)}%</td><td>${aim.cth.toFixed(0)}%</td>`+
+      `<td>${pill(100*snap.p)}</td><td>${pill(100*aim.p)}</td></tr>`;
+  });
+  document.getElementById('snap').innerHTML=html;
+  // verdict
+  const h10=realHit(s,CUR,10,maxaim,grC,handling,maxaim).p, h20=realHit(s,CUR,20,maxaim,grC,handling,maxaim).p;
+  document.getElementById('verdict').innerHTML=
+    `At <b>10 tiles fully aimed</b> this shooter really lands ~<b>${(100*h10).toFixed(0)}%</b> of shots; at <b>20 tiles ~${(100*h20).toFixed(0)}%</b>. `+
+    (h20<0.25?`That is the "can't hit anything" zone — the muzzle-sway cone is far wider than the target. Try raising IRON_SIGHT_PERFORMANCE_BONUS or lowering DEGREES_MAXIMUM_APERTURE on the PROPOSED side and watch the purple curve.`:`Comfortable. `);
+}
+function row(k,v){return `<tr><td>${k}</td><td style="text-align:right">${v}</td></tr>`;}
+function pill(v){const c=v>=55?'p-good':v>=30?'p-warn':'p-bad';return `<span class="pill ${c}">${v.toFixed(0)}%</span>`;}
+function fit(cv){const w=cv.parentElement.clientWidth-28;cv.width=w;cv.style.width=w+'px';}
+
+// ---------- wiring ----------
+function bindVal(id){const el=document.getElementById(id),out=document.getElementById(id+'_v');
+  if(el&&out)el.addEventListener('input',()=>{out.textContent=el.value+(id==='mag'?'×':'');});}
+['exp','marks','dex','wis','handling','maxaim','prog','cond','tw','th','mag','aprange'].forEach(bindVal);
+// CTHConstants sliders → PROPOSED
+IDS_C.forEach(id=>{const el=document.getElementById(id),out=document.getElementById(id+'_v');
+  if(!el)return; el.addEventListener('input',()=>{out.textContent=el.value;PROP[id]=+el.value;draw();});});
+document.querySelectorAll('#IRON_GRADIENT button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#IRON_GRADIENT button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  gradientProp=+b.dataset.v;draw();}));
+document.querySelectorAll('#stance button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#stance button').forEach(x=>x.classList.remove('on'));b.classList.add('on');stance=b.dataset.v;draw();}));
+document.querySelectorAll('#sight button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#sight button').forEach(x=>x.classList.remove('on'));b.classList.add('on');sight=b.dataset.v;
+  document.getElementById('scoperow').style.display=sight==='scope'?'flex':'none';draw();}));
+['exp','marks','dex','wis','handling','maxaim','prog','cond','tw','th','mag','aprange','diff'].forEach(id=>
+  document.getElementById(id).addEventListener('input',draw));
+window.addEventListener('resize',draw);
+
+function applyPreset(name){
+  if(name==='vanilla'){CUR=Object.assign({},VANILLA);PROP=Object.assign({},VANILLA);gradientProp=1;}
+  if(name==='lowbuff'){PROP=Object.assign({},VANILLA,{IRON_PERF:35,IRON_MOD:2.5,BASE_EXP:2,BASE_MARKS:1.5,BASE_DRAW:1.5});}
+  if(name==='tighten'){PROP=Object.assign({},VANILLA,{DEG_APERTURE:11,IRON_PERF:30});}
+  // push PROP into the sliders
+  IDS_C.forEach(id=>{const el=document.getElementById(id);if(el){el.value=PROP[id];document.getElementById(id+'_v').textContent=PROP[id];}});
+  draw();
+}
+draw();
+</script>
+</body>
+</html>

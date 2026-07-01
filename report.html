@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NCTH Analysis &amp; Tuning Report</title>
+<style>
+:root{--bg:#12151b;--panel:#1b202b;--ink:#e6ecf5;--mut:#93a1b5;--acc:#5cc8ff;--prop:#c58cff;--good:#54d98c;--bad:#ff6b6b;--warn:#ffcf5c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15.5px/1.65 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+nav{position:sticky;top:0;background:#12151bee;backdrop-filter:blur(6px);border-bottom:1px solid #2b3547;padding:11px 22px;display:flex;gap:18px;align-items:center;z-index:5}
+nav a{color:var(--acc);text-decoration:none;font-weight:600;font-size:14px}
+nav a:hover{text-decoration:underline}
+main{max-width:900px;margin:0 auto;padding:26px 22px 80px}
+h1{font-size:26px;line-height:1.25;margin:24px 0 8px;letter-spacing:.2px}
+h2{font-size:20px;margin:34px 0 10px;padding-top:12px;border-top:1px solid #262f40;color:#dfe8f5}
+h3{font-size:16.5px;margin:22px 0 8px;color:var(--acc)}
+p{margin:11px 0}
+a{color:var(--acc)}
+code{background:#0e1219;border:1px solid #2a3346;border-radius:4px;padding:1px 5px;color:#bfe3ff;font-size:.9em}
+pre{background:#0e1219;border:1px solid #2a3346;border-radius:8px;padding:12px 14px;overflow:auto;line-height:1.4}
+pre code{background:none;border:0;padding:0;color:#cfe3f5;font-size:12.5px;white-space:pre}
+.tw{overflow-x:auto;margin:14px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{border:1px solid #2c3444;padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#232a38;color:var(--mut);font-weight:600}
+tr:nth-child(even) td{background:#171c26}
+blockquote{margin:14px 0;padding:8px 16px;border-left:3px solid var(--warn);background:#1a1f2a;color:#cdd6e4;border-radius:0 8px 8px 0}
+img{max-width:100%;height:auto;display:block;margin:16px 0;border:1px solid #2a3346;border-radius:8px}
+hr{border:0;border-top:1px solid #262f40;margin:26px 0}
+ul,ol{margin:11px 0;padding-left:24px}
+li{margin:5px 0}
+strong{color:#fff}
+</style></head><body>
+<nav><a href="index.html">← Interactive Tuning Lab</a><a href="https://github.com/tais/ncth-tuning-lab">GitHub repo</a></nav>
+<main>
+<h1>Jagged Alliance 2 v1.13 — Understanding &amp; Tuning the New Chance‑To‑Hit (NCTH) System</h1>
+<p>*A source‑grounded analysis of HEADROCK's NCTH shooting model, why low‑level mercs "can't hit anything", and exactly which knobs to turn.*</p>
+<p>Prepared from the actual mod source (<code>source/Tactical/Weapons.cpp</code>, <code>source/Tactical/LOS.cpp</code>, <code>source/Ja2/GameSettings.cpp</code>) and the live tuning files (<code>gamedir/Data-1.13/CTHConstants.ini</code>, <code>Ja2_Options.INI</code>, <code>DifficultySettings.xml</code>). Every formula below was read from the code, numerically reproduced, and cross‑checked by an adversarial review pass.</p>
+<p><strong>Companion files in this folder</strong></p>
+<ul><li><strong><code>index.html</code></strong> — an interactive calculator. Open it in any browser (no install). Move the sliders, watch the real hit‑chance curves move. This is the "let's tune it together" tool.</li><li><code>chart1_realhit.svg</code>, <code>chart2_divergence.svg</code>, <code>chart3_base_vs_exp.svg</code> — the static charts used below.</li></ul>
+<hr>
+<h2>0. TL;DR</h2>
+<ol><li><strong>The complaint is real and it is mostly a geometry problem, not a "bad stats" problem.</strong> A level‑4 / 70‑marksmanship merc with a standing assault rifle shows roughly <strong>"57%"</strong> on the cursor at all ranges, but the number the cursor shows is <strong>not</strong> the chance to hit. The real chance — validated by simulating the exact code — is about <strong>57% at 10 tiles, 20% at 20 tiles, 9% at 30 tiles</strong>, and their *snap* (unaimed) shot is <strong>~5–17%</strong> at any range. That is the "can't hit anything" experience.</li><li><strong>Two independent things gate low‑level mercs:</strong> (a) <strong>Base CTH is experience‑dominated</strong> — the formula multiplies experience by 10 *and* weights it ×3, so a low‑level merc's unaimed shot is worthless regardless of marksmanship; (b) <strong>the cursor % feeds a widening cone of fire</strong>, and the chance of a bullet landing on a man‑sized target falls off roughly as *1 / (range²)*, so aimed shots collapse with distance even though the displayed % barely moves.</li><li><strong>⚠️ Your live game folder currently has <code>NCTH = FALSE</code></strong> (<code>gamedir/Data-1.13/Ja2_Options.INI:1737</code>) — i.e. it is set to run the <strong>old</strong> system (OCTH). Every tuning value in <code>CTHConstants.ini</code> only does anything when <strong><code>NCTH = TRUE</code></strong>. Confirm which system you actually play before tuning (see §1).</li><li><strong>Highest‑leverage, low‑risk fixes</strong> (details in §6–7): raise <strong><code>IRON_SIGHT_PERFORMANCE_BONUS</code></strong>, lower <strong><code>DEGREES_MAXIMUM_APERTURE</code></strong> a little, lower <strong><code>IRON_SIGHTS_MAX_APERTURE_MODIFIER</code></strong> toward 2.0, rebalance <strong><code>BASE_EXP</code> down / <code>BASE_MARKS</code> up</strong>, and lower <strong><code>MAX_BULLET_DEV</code></strong>. **Do *not* lower <code>NORMAL_SHOOTING_DISTANCE</code>** — it is a false lever for iron sights and actively hurts (§6).</li></ol>
+<hr>
+<h2>1. ⚠️ First things first: OCTH vs NCTH (don't tune the wrong system)</h2>
+<p>JA2 1.13 ships <strong>two completely different</strong> chance‑to‑hit systems, chosen by one switch:</p>
+<pre><code>Ja2_Options.INI → [Tactical Gameplay Settings] → NCTH = TRUE|FALSE</code></pre>
+<p>Read into <code>gGameExternalOptions.fUseNCTH</code>; <code>UsingNewCTHSystem()</code> returns it (<code>GameSettings.cpp:122</code>). <strong>In your current <code>Data-1.13</code> folder it is <code>FALSE</code>.</strong> If that is really how you play, none of the <code>CTHConstants.ini</code> values are in effect and the tuning below won't change anything until you set it to <code>TRUE</code>.</p>
+<div class="tw"><table>
+<thead><tr>
+<th></th>
+<th><strong>OCTH</strong> (old / classic)</th>
+<th><strong>NCTH</strong> (new / HEADROCK "HAM4")</th>
+</tr></thead><tbody>
+<tr>
+<td>What the % means</td>
+<td>A literal probability. The engine rolls <code>PreRandom(100)</code>; <strong>hit if roll &lt; CTH</strong> (<code>Weapons.cpp:3473</code>).</td>
+<td><strong>Only an estimate of how well the muzzle points.</strong> There is *no* roll‑under.</td>
+</tr>
+<tr>
+<td>How a miss happens</td>
+<td>On a roll‑*over* the bullet is deflected; amount scales with <code>sHitBy</code> (how badly you missed). A *hit* goes dead‑centre.</td>
+<td><strong>Every</strong> shot is a random draw inside a "cone of fire". Whether it lands on the target is pure geometry.</td>
+</tr>
+<tr>
+<td>Tuned by</td>
+<td>The big additive <code>+/-</code> modifier list inside <code>CalcChanceToHitGun</code> and the <code>[CTH]</code> INI options.</td>
+<td><strong><code>CTHConstants.ini</code></strong> (aperture, base/aim weights, recoil) + a few <code>Ja2_Options</code> keys.</td>
+</tr>
+<tr>
+<td><code>CTHConstants.ini</code> used?</td>
+<td><strong>Mostly ignored.</strong> Aperture, scope‑effectiveness, iron‑sight bonus, base/aim weights = <strong>NCTH‑only</strong>.</td>
+<td>Yes — this is *the* NCTH tuning file.</td>
+</tr>
+</tbody></table></div>
+<p><strong>Takeaway:</strong> everything in this report is about <strong>NCTH</strong>. The two systems share almost no tuning surface, so a value that matters under NCTH (e.g. <code>DEGREES_MAXIMUM_APERTURE</code>) does nothing under OCTH, and vice‑versa. This is the trap to avoid.</p>
+<hr>
+<h2>2. How NCTH actually works (the whole pipeline)</h2>
+<p>NCTH replaces "roll a die against a %" with "<strong>simulate where the muzzle is pointing and fly the bullet there</strong>". The displayed % is just an input to that simulation.</p>
+<pre><code>                        ┌─────────────────────────────────────────────┐
+   skills, gun,         │  CalcNewChanceToHitGun()  (Weapons.cpp:6258) │
+   stance, aim clicks ─▶│  = the DISPLAYED cursor %                    │
+                        │   BASE CTH  ──(aim clicks)──▶  toward  CAP   │
+                        └───────────────┬─────────────────────────────┘
+                                        │  displayed CTH (0..99)
+                                        ▼
+                     uiMuzzleSway = 100 − displayed CTH      (Weapons.cpp:2498)
+                                        │   (low CTH ⇒ big sway)
+                                        ▼
+     ┌───────────────────────────────────────────────────────────────────┐
+     │  AdjustTargetCenterPoint()  (LOS.cpp:8527)                          │
+     │  build a CONE of fire whose radius grows with range &amp; sway:         │
+     │    basicAperture = sin(DEGREES_MAXIMUM_APERTURE) × NORMAL_DISTANCE  │
+     │    aperture      = basicAperture × range/NORMAL ÷ scopeMag × sway/100│
+     │  then pick a RANDOM point inside that disk (CalcMuzzleSway, 9464):   │
+     │    r = sqrt(rand)   ← uniform over the disk AREA                     │
+     │  + a second, gun‑only "bullet deviation" (CalcBulletDeviation, 9541) │
+     │  + per‑bullet RECOIL for burst/auto shots #2+ (CalcRecoilOffset)     │
+     └───────────────────────────────┬───────────────────────────────────┘
+                                     ▼
+             Bullet flies to (target centre + offset). Hit = it lands on the body.</code></pre>
+<h3>2a. The displayed % is two halves: <strong>Base</strong> and <strong>Cap</strong></h3>
+<p><strong>Base CTH</strong> — how well the muzzle points with *no* extra aiming (skills only, then dragged down by gun handling/conditions). Experience‑dominated. Capped low (max ≈ 33).</p>
+<pre><code>BaseCTH = (BASE_EXP·exp·10 + BASE_MARKS·marks + BASE_DEX·dex + BASE_WIS·wis)
+          ────────────────────────────────────────────────────────────────  ÷ 3
+                     (BASE_EXP + BASE_MARKS + BASE_DEX + BASE_WIS)</code></pre>
+<p>With the live values <code>(3,1,1,1)</code> this is <strong><code>(30·exp + marks + dex + wis) / 18</code></strong>  (<code>Weapons.cpp:11427‑11438</code>). If effective marks <strong>or</strong> dex is 0 it returns the minimum CTH ("never hit").</p>
+<p><strong>CTH Cap</strong> — the absolute ceiling aiming can ever reach. Marks/Dex‑dominated, <strong>not</strong> divided by 3, so it can reach ~99.</p>
+<pre><code>Cap = (AIM_EXP·exp·10 + AIM_MARKS·marks + AIM_DEX·dex + AIM_WIS·wis)
+      ─────────────────────────────────────────────────────────────
+                 (AIM_EXP + AIM_MARKS + AIM_DEX + AIM_WIS)</code></pre>
+<p>With the live values <code>(1,3,2,1)</code> this is <strong><code>(10·exp + 3·marks + 2·dex + wis) / 7</code></strong>  (<code>Weapons.cpp:11787‑11795</code>).</p>
+<p><strong>Aiming</strong> moves the result from Base toward Cap along a *diminishing* curve. With N allowed aim clicks, click *i* adds <code>(N−i+1)/[N(N+1)/2]</code> of the span — the first click gives the most, the last click the least, and spending all clicks reaches the cap (<code>Weapons.cpp:6579‑6600</code>). Both Base and Cap are then dragged down by a <strong>modifier stack</strong> (gun handling, stance, injury, morale, fatigue, suppression shock, visibility, difficulty…). All of it clamps to <code>[MINIMUM_POSSIBLE_CTH, MAXIMUM_POSSIBLE_CTH]</code> = <strong><code>[0, 99]</code></strong> in your config.</p>
+<h3>2b. The cursor % becomes a cone of fire</h3>
+<p>The single most important line in the whole system:</p>
+<pre><code>uiMuzzleSway = 100 − CalcChanceToHitGun(...)          // Weapons.cpp:2498</code></pre>
+<p>That sway scales the <strong>radius of the aperture</strong> the muzzle may wander in:</p>
+<pre><code>basicAperture = sin(15°) × 70            = 18.1 units           (LOS.cpp:9117)   ← one tile = 10 units
+              × (iron‑sight gradient &amp; −20% iron bonus)          (LOS.cpp:8624‑8633)
+distanceAperture = basicAperture × range / 70                    (LOS.cpp:8683)   ← grows with range
+maxAperture      = distanceAperture / effectiveScopeMag          (LOS.cpp:8697)   ← scope shrinks it
+aperture         = maxAperture × uiMuzzleSway / 100              (LOS.cpp:8703)   ← THE payoff</code></pre>
+<p>Then a random point is drawn <strong>uniformly over the disk's area</strong> (<code>r = sqrt(rand)</code>, <code>LOS.cpp:9482</code>) and the bullet flies there. <code>VERTICAL_BIAS</code> squashes the disk vertically when prone/crouched (so fewer high/low misses); standing is a full circle.</p>
+<p>Two more scatter layers pile on top, and neither is reflected in the cursor %:</p>
+<ul><li><strong>Bullet deviation</strong> (<code>CalcBulletDeviation</code>, <code>LOS.cpp:9541</code>): <code>MAX_BULLET_DEV × (100 − gunAccuracy)/100</code>, and with <code>RANGE_EFFECTS_DEV = TRUE</code> it <strong>grows with range</strong>. This scatters even a "99%" shot, worse for low‑accuracy guns.</li><li><strong>Recoil</strong> (<code>CalcRecoilOffset</code>, <code>LOS.cpp:10188</code>): only affects <strong>bullets #2+ of a burst/auto</strong> — the *first* bullet is never recoil‑displaced. Countered by STR/AGI/EXP/Auto‑Weapons skill.</li></ul>
+<hr>
+<h2>3. Why the cursor lies: displayed % vs the real hit chance</h2>
+<p>Because the muzzle point is drawn uniformly over a <strong>disk</strong>, the chance it lands on a (roughly fixed‑size) target scales with <strong>area</strong> — i.e. roughly <strong><code>(target size / aperture radius)²</code></strong>. The aperture radius grows linearly with range, so the real hit chance falls off like <strong>1 / range²</strong>. But the displayed % has <strong>no range term for a plainly‑visible target</strong> — so the cursor stays almost flat while the true chance collapses.</p>
+<p><img src="chart2_divergence.svg" alt="Displayed CTH vs real hit chance" loading="lazy"></p>
+<p>*Same L4/70 shooter, fully aimed. The cursor reads a nearly constant ~57%; the real hit chance falls from ~57% at 10 tiles to ~9% at 30.*</p>
+<p>Two consequences that explain a lot of the "feel":</p>
+<ul><li><strong>In the mid‑range, the cursor over‑states your odds</strong> (it says 57%, you land ~20% at 20 tiles).</li><li><strong>Near the top, the cursor under‑states them.</strong> Once the aperture shrinks below the target's size, *every* shot hits — so a "70%" that's over that threshold is effectively 100%. This is why the last few points of CTH feel disproportionately powerful, and why veterans with scopes suddenly "never miss".</li></ul>
+<blockquote>Note: <code>INACCURATE_CTH_READOUT = TRUE</code> in your config *deliberately* makes the on‑screen feedback fuzzier for untrained shooters, which compounds the perception that low‑level mercs are unpredictable.</blockquote>
+<hr>
+<h2>4. Root cause of "up to L4 exp / 70 marks, can't hit anything"</h2>
+<p>It is <strong>three stacked mechanics</strong>, and — importantly — **marksmanship is *not* the binding constraint**:</p>
+<p><strong>(1) Base CTH is experience‑gated by construction.</strong> The <code>exp·10</code> term with weight ×3 makes experience worth ~30× a raw marksmanship point in the base. One experience level ≈ +1.7 base CTH; one marksmanship point ≈ +0.06. Even maxing marks+dex+wis to 100 with experience stuck at 4 only lifts the base skill part from 18.3 to 23.3 (out of the /3 ceiling of 33). **Snap/unaimed shots are therefore ~10% for this merc at *any* range.**</p>
+<p><img src="chart3_base_vs_exp.svg" alt="Base CTH vs experience level" loading="lazy"></p>
+<p>*Base CTH (red) is dominated by experience; the cap (green) is not. Marksmanship 70 buys you a decent <strong>ceiling</strong> but a poor <strong>floor</strong>.*</p>
+<p><strong>(2) Gun handling then halves the base and clips the aim span.</strong> For a standing assault rifle (handling ≈ 11): base is multiplied by <code>1 − (11 × BASE_STANDING_STANCE 2.0 × BASE_DRAW_COST 2.0)/100 = 1 − 44% ⇒ base ≈ 10</code>. The parallel aim penalty (<code>AIM_DRAW_COST 1.0 × AIM_STANDING_STANCE 1.5 × 11 = −16.5%</code>) shrinks the *reachable span*, so max‑aim displayed CTH tops out around <strong>56–57%, below the marksmanship cap of ~66</strong> — which is why raising <code>AIM_MARKS</code> or <code>MAXIMUM_POSSIBLE_CTH</code> barely helps *this* merc: he can't reach the cap anyway.</p>
+<p><strong>(3) That modest 56% cursor keeps the cone wide, and geometry does the rest.</strong> <code>sway = 100 − 57 = 43</code> ⇒ a fairly large aperture that grows with range. Result (simulated from the real RNG, standing, iron sights, whole‑body target, Expert difficulty):</p>
+<div class="tw"><table>
+<thead><tr>
+<th>Range</th>
+<th>Base CTH</th>
+<th>Displayed CTH (max aim)</th>
+<th>Real hit — snap</th>
+<th>Real hit — max aim</th>
+</tr></thead><tbody>
+<tr>
+<td>5 t</td>
+<td>10%</td>
+<td>57%</td>
+<td>52%</td>
+<td><strong>99%</strong></td>
+</tr>
+<tr>
+<td>10 t</td>
+<td>10%</td>
+<td>57%</td>
+<td>17%</td>
+<td><strong>57%</strong></td>
+</tr>
+<tr>
+<td>15 t</td>
+<td>10%</td>
+<td>57%</td>
+<td>8%</td>
+<td><strong>34%</strong></td>
+</tr>
+<tr>
+<td>20 t</td>
+<td>10%</td>
+<td>57%</td>
+<td>5%</td>
+<td><strong>20%</strong></td>
+</tr>
+<tr>
+<td>25 t</td>
+<td>10%</td>
+<td>57%</td>
+<td>3%</td>
+<td><strong>13%</strong></td>
+</tr>
+<tr>
+<td>30 t</td>
+<td>10%</td>
+<td>57%</td>
+<td>2%</td>
+<td><strong>9%</strong></td>
+</tr>
+</tbody></table></div>
+<p><img src="chart1_realhit.svg" alt="Real hit chance vs range" loading="lazy"></p>
+<p>For calibration, a veteran (exp 6 / marks 90, standing iron sights) reaches a ~74% cursor and really lands ~92% at 10 tiles, ~49% at 20, ~24% at 30 — much better, but note <strong>even the veteran's iron‑sight shots decay at range</strong> (that's what scopes are for), and **his *snap* shot at 20 t is also ~5%<strong> because base CTH barely differs. Snap shots are meant to be bad for everyone; the low‑level pain is specifically that </strong>aimed** shots also fall apart past ~12–15 tiles.</p>
+<hr>
+<h2>5. What this means for the design intent</h2>
+<p>NCTH is internally consistent and, honestly, quite elegant — it models "an unskilled shooter waves the muzzle around a wide cone; skill + aiming + optics + a steady stance shrink that cone." The frustration is that the <strong>defaults are tuned for a squad that has scopes and mid/high experience</strong>. A fresh militia‑grade merc with iron sights sits near the widest part of every curve, and because hit‑chance is quadratic in cone size, "a bit below average" *feels* like "hopeless". The knobs below let you flatten that early‑game cliff without turning your veterans or the enemy into aimbots.</p>
+<hr>
+<h2>6. The tuning levers (ranked, with direction and side‑effects)</h2>
+<p>All values below are <strong>NCTH‑only</strong> unless noted, live in <code>CTHConstants.ini</code>, and were confirmed against <code>GameSettings.cpp</code>. "Raise/Lower" = the direction that <strong>helps the shooter</strong>.</p>
+<h3>Tier 1 — biggest effect on the low‑level problem</h3>
+<div class="tw"><table>
+<thead><tr>
+<th>Parameter</th>
+<th>Now</th>
+<th>Suggested</th>
+<th>Direction / effect</th>
+<th>Watch‑outs</th>
+</tr></thead><tbody>
+<tr>
+<td><strong><code>IRON_SIGHT_PERFORMANCE_BONUS</code></strong></td>
+<td>20</td>
+<td><strong>30–40</strong></td>
+<td><strong>Raise.</strong> Directly shrinks the iron‑sight cone (<code>aperture × (100−bonus)/100</code>, <code>LOS.cpp:8633</code>). At 40 the cone is 25% tighter than now ⇒ real hit ≈ ×1.8 in the falloff zone.</td>
+<td>Iron‑sight only, so it targets exactly the low‑level loadout and *doesn't* buff scoped snipers. Cumulative with laser bonuses.</td>
+</tr>
+<tr>
+<td><strong><code>DEGREES_MAXIMUM_APERTURE</code></strong></td>
+<td>15</td>
+<td><strong>11–13</strong></td>
+<td><strong>Lower.</strong> The master cone knob: <code>basicAperture = sin(angle)×NORMAL</code>. Tightens *every* shot. Absolute gain is largest for wide‑cone (low‑skill) shooters.</td>
+<td>Global — buffs enemies and veterans equally, and it does <strong>not</strong> change the displayed %, so the cursor won't reflect it. Go gently.</td>
+</tr>
+<tr>
+<td><strong><code>IRON_SIGHTS_MAX_APERTURE_MODIFIER</code></strong></td>
+<td>3.0</td>
+<td><strong>2.25–2.5</strong></td>
+<td><strong>Lower</strong> (keep <code>..._USE_GRADIENT = TRUE</code>). Makes iron sights hold accuracy at range; 2.0 ≈ as good as a 2× scope.</td>
+<td>Helps iron‑sight users at distance specifically; little effect up close.</td>
+</tr>
+<tr>
+<td><strong><code>BASE_EXP</code> / <code>BASE_MARKS</code></strong></td>
+<td>3 / 1</td>
+<td><strong>2 / 1.5</strong></td>
+<td>Shift base weighting off raw experience onto trainable marksmanship. Raises base CTH (⇒ tighter snap cone, higher floor) <strong>for mercs whose marks &gt; 10×exp</strong> — exactly your recruits.</td>
+<td><strong>Population‑selective and self‑balancing:</strong> barely moves elite enemies (high exp *and* marks); *lowers* base for veteran‑but‑low‑marks mercs. Keep <code>BASE_EXP + others</code> sane.</td>
+</tr>
+<tr>
+<td><strong><code>MAX_BULLET_DEV</code></strong></td>
+<td>5</td>
+<td><strong>3–4</strong></td>
+<td><strong>Lower.</strong> Shrinks the gun‑accuracy scatter layer that sits on top of the cone and is worst for low‑accuracy guns/long range. Invisible on the cursor.</td>
+<td>Global; also tightens enemy fire. <code>RANGE_EFFECTS_DEV = FALSE</code> would remove range‑scaling of this layer entirely.</td>
+</tr>
+</tbody></table></div>
+<h3>Tier 2 — helpful, more situational</h3>
+<div class="tw"><table>
+<thead><tr>
+<th>Parameter</th>
+<th>Now</th>
+<th>Idea</th>
+<th>Effect</th>
+</tr></thead><tbody>
+<tr>
+<td><code>AIM_DEX</code></td>
+<td>2</td>
+<td>2.5–3</td>
+<td>Raises the <strong>cap</strong> using dexterity, which many recruits have — lets a well‑trained low‑exp merc reach a higher aimed ceiling.</td>
+</tr>
+<tr>
+<td><code>BASE_DRAW_COST</code> / <code>AIM_DRAW_COST</code></td>
+<td>2 / 1</td>
+<td>1.5 / 0.75</td>
+<td>Softens the heavy handling penalty that halves base CTH (§4‑2). Helps everyone with cumbersome guns; be careful, it also lifts snap fire generally.</td>
+</tr>
+<tr>
+<td><code>BASE_STANDING_STANCE</code> / <code>AIM_STANDING_STANCE</code></td>
+<td>2 / 1.5</td>
+<td>1.75 / 1.25</td>
+<td>Same idea, standing‑specific (recruits often can't afford to go prone).</td>
+</tr>
+<tr>
+<td><code>SCOPE_EFFECTIVENESS_MINIMUM</code></td>
+<td>50</td>
+<td>60–70</td>
+<td>If you hand recruits optics, guarantees more of the scope's power regardless of skill (low‑skill only; experts already near cap).</td>
+</tr>
+<tr>
+<td><code>LIMIT_GROUND_SHOTS</code></td>
+<td>FALSE</td>
+<td>TRUE</td>
+<td>Cuts the demoralising "shot the dirt 2 feet away" first‑bullet misses (overrides <code>VERTICAL_BIAS</code>).</td>
+</tr>
+<tr>
+<td><code>MOVEMENT_TRACKING_DIFFICULTY</code></td>
+<td>40</td>
+<td>25–30</td>
+<td>Makes moving targets less punishing for unskilled shooters.</td>
+</tr>
+</tbody></table></div>
+<h3>Tier 3 — asymmetric knobs (help the player *without* buffing the enemy)</h3>
+<p>These live in <strong><code>gamedir/Data-1.13/TableData/DifficultySettings.xml</code></strong>, are applied per difficulty, and — for the player only — <strong>fade out by 30% campaign progress</strong> (<code>Weapons.cpp:11658, 11982</code>):</p>
+<pre><code>player bonus = max(0, 30 − campaignProgress%) × CthConstants…DifficultyPlayer / 30</code></pre>
+<p>Current per‑difficulty values (Base and Aim, Player / Enemy):</p>
+<div class="tw"><table>
+<thead><tr>
+<th>Difficulty</th>
+<th>Player Base+Aim</th>
+<th>Enemy Base+Aim</th>
+</tr></thead><tbody>
+<tr>
+<td>Novice</td>
+<td><strong>+20</strong> (fades to 0 by 30%)</td>
+<td>−30</td>
+</tr>
+<tr>
+<td>Experienced</td>
+<td><strong>+10</strong></td>
+<td>0</td>
+</tr>
+<tr>
+<td>Expert</td>
+<td><strong>0</strong></td>
+<td>+20</td>
+</tr>
+<tr>
+<td>Insane</td>
+<td><strong>0</strong></td>
+<td>+50</td>
+</tr>
+</tbody></table></div>
+<p><strong>This is huge for your complaint.</strong> If you play <strong>Expert or Insane</strong>, your low‑level mercs get <strong>zero</strong> help while enemies get <strong>+20/+50</strong> aim — the asymmetry alone can make early fights feel hopeless. To help the *player* specifically, raise <code>CthConstantsBaseDifficultyPlayer</code> / <code>CthConstantsAimDifficultyPlayer</code> for your difficulty (e.g. give Expert +10/+15), and/or trim the enemy values. Because it fades by 30% progress, it's an early‑game crutch that disappears once your squad matures — arguably the cleanest fix of all.</p>
+<h3>The one lever *not* to touch</h3>
+<p><strong><code>NORMAL_SHOOTING_DISTANCE</code> (70).</strong> The INI comment says "decrease to make all shots more accurate", but for iron sights that is <strong>wrong</strong>: it appears in <code>basicAperture = sin(angle)×NORMAL</code> *and* in <code>distanceAperture = basicAperture × range/NORMAL</code>, so it <strong>cancels out</strong> of the un‑scoped cone entirely (<code>LOS.cpp:9120</code> vs <code>8683</code>). Worse, it multiplies the separate bullet‑deviation term (<code>iBulletDev × range/NORMAL</code>), so **lowering it *increases* scatter<strong> for everyone. Its only real job is setting where </strong>scopes** reach full magnification. Leave it at 70 (or *raise* it slightly if you want less long‑range bullet deviation, at the cost of scopes maturing later).</p>
+<hr>
+<h2>7. Concrete starting recipes (for tuning together)</h2>
+<p>Predicted real hit‑chance for the <strong>L4 / 70‑marks</strong> test merc (standing, iron sights, whole‑body target, Expert), from the simulation. Load these on the <strong>Proposed</strong> side of <code>index.html</code> and compare live.</p>
+<p><strong>Recipe A — "Iron‑sight buff" (surgical, low collateral).</strong> Helps recruits, minimal enemy/veteran impact.</p>
+<pre><code>IRON_SIGHT_PERFORMANCE_BONUS      = 35     ; was 20
+IRON_SIGHTS_MAX_APERTURE_MODIFIER = 2.5    ; was 3.0
+BASE_EXP                          = 2.0    ; was 3.0
+BASE_MARKS                        = 1.5    ; was 1.0
+BASE_DRAW_COST                    = 1.5    ; was 2.0</code></pre>
+<p>→ 10 t: 57% → <strong>~76%</strong>  ·  20 t: 20% → <strong>~35%</strong>  ·  30 t: 9% → <strong>~16%</strong>. Snap shots roughly unchanged (still meant to be weak).</p>
+<p><strong>Recipe B — "Tighter cone" (global, punchier, also buffs enemies).</strong></p>
+<pre><code>DEGREES_MAXIMUM_APERTURE          = 11     ; was 15
+IRON_SIGHT_PERFORMANCE_BONUS      = 30     ; was 20
+MAX_BULLET_DEV                    = 3.5    ; was 5.0</code></pre>
+<p>→ a stronger across‑the‑board tightening; combat gets faster and more lethal for both sides. Good if you feel *all* firefights are too swingy, not just the player's recruits.</p>
+<p><strong>Recipe C — "Early‑game crutch" (player‑only, self‑removing).</strong> Edit <code>DifficultySettings.xml</code> for your difficulty:</p>
+<pre><code>CthConstantsBaseDifficultyPlayer  = 15
+CthConstantsAimDifficultyPlayer   = 15</code></pre>
+<p>→ +15% base and aim while campaign progress &lt; 30%, fading to 0. Doesn't touch enemies, veterans, or late game at all.</p>
+<p><strong>Recommended combination to start:</strong> <strong>Recipe A + Recipe C.</strong> A tightens the low‑level cone through skill/equipment terms; C cushions the very early game without permanently trivialising anything. Then sit with the Tuning Lab and dial <code>IRON_SIGHT_PERFORMANCE_BONUS</code> / <code>DEGREES_MAXIMUM_APERTURE</code> to taste.</p>
+<hr>
+<h2>8. Using the interactive Tuning Lab</h2>
+<p>Open <strong><code>index.html</code></strong>. Set the shooter to your problem case (exp 4, marks 70…), pick stance/sight/difficulty, then edit the <code>CTHConstants</code> sliders — they drive the <strong>purple "Proposed"</strong> curves so you can compare against the <strong>green/blue "Current"</strong>. It reproduces the real code: displayed CTH → <code>muzzleSway = 100 − CTH</code> → aperture geometry → a <code>sqrt(uniform)</code> Monte‑Carlo of the muzzle point vs the target silhouette. The bottom‑left panel draws the actual aperture disk and 250 sample shots so you can *see* the cone shrink as you tune. The presets ("Low‑level buff", "Tighter cone") load the recipes above.</p>
+<hr>
+<h2>9. Model fidelity &amp; caveats (so you can trust — and correct — the numbers)</h2>
+<ul><li>The engine has <strong>no <code>roll &lt; CTH</code></strong> step under NCTH; the "real hit %" here is a Monte‑Carlo of the exact muzzle‑sway draw (<code>CalcMuzzleSway</code>, <code>LOS.cpp:9464</code>) against a target silhouette. It is faithful to the dominant mechanic.</li><li><strong>Two things are deliberately simplified:</strong> (a) the *displayed* CTH model omits some second‑order range/visibility penalties, so in‑game the cursor will also *decline* a little at long range (the real‑hit curve is the honest one and already declines steeply); (b) the second <strong>bullet‑deviation</strong> scatter layer and burst <strong>recoil</strong> are not added into the Monte‑Carlo — including them makes long‑range and full‑auto slightly *worse* than shown, which only strengthens the conclusions. Levers for those (<code>MAX_BULLET_DEV</code>, <code>RANGE_EFFECTS_DEV</code>, the <code>RECOIL_*</code> block) are covered in §6.</li><li>The <strong>target silhouette size</strong> (half‑width/half‑height in units) is an estimate — it's a slider in the Lab. If your in‑game experience says hits are rarer/commoner than the tool shows, nudge the target size to calibrate, then trust the *relative* movement of the curves when you tune.</li><li>Everything else — base/cap formulas, the <code>100 − CTH</code> handoff, the aperture chain, the handling penalties, the difficulty asymmetry — is taken directly from source and reproduced exactly.</li></ul>
+<hr>
+<h3>Appendix — key source references</h3>
+<div class="tw"><table>
+<thead><tr>
+<th>Mechanic</th>
+<th>Location</th>
+</tr></thead><tbody>
+<tr>
+<td>System switch <code>NCTH</code> → <code>UsingNewCTHSystem()</code></td>
+<td><code>GameSettings.cpp:122</code>, <code>:1576</code></td>
+</tr>
+<tr>
+<td>Displayed CTH master</td>
+<td><code>CalcNewChanceToHitGun</code> — <code>Weapons.cpp:6258‑6611</code></td>
+</tr>
+<tr>
+<td>Base attribute formula</td>
+<td><code>Weapons.cpp:11414‑11438</code></td>
+</tr>
+<tr>
+<td>Cap attribute formula</td>
+<td><code>Weapons.cpp:11779‑11795</code></td>
+</tr>
+<tr>
+<td>Aim‑click diminishing curve</td>
+<td><code>Weapons.cpp:6579‑6600</code></td>
+</tr>
+<tr>
+<td>Difficulty asymmetry (player fade)</td>
+<td><code>Weapons.cpp:11648‑11660</code>, <code>:11968‑11984</code></td>
+</tr>
+<tr>
+<td>CTH → muzzle sway handoff</td>
+<td><code>Weapons.cpp:2498</code></td>
+</tr>
+<tr>
+<td>Aperture / cone construction</td>
+<td><code>AdjustTargetCenterPoint</code> — <code>LOS.cpp:8527‑8988</code></td>
+</tr>
+<tr>
+<td>Basic aperture</td>
+<td><code>CalcBasicAperture</code> — <code>LOS.cpp:9102‑9124</code></td>
+</tr>
+<tr>
+<td>Random muzzle draw (<code>sqrt(uniform)</code>)</td>
+<td><code>CalcMuzzleSway</code> — <code>LOS.cpp:9464‑9539</code></td>
+</tr>
+<tr>
+<td>Scope magnification vs skill</td>
+<td><code>CalcMagFactor</code> / <code>CalcEffectiveMagFactor</code> — <code>LOS.cpp:9028‑9098</code></td>
+</tr>
+<tr>
+<td>Gun bullet deviation</td>
+<td><code>CalcBulletDeviation</code> — <code>LOS.cpp:9541</code></td>
+</tr>
+<tr>
+<td>Recoil (bullets #2+)</td>
+<td><code>CalcRecoilOffset</code> — <code>LOS.cpp:10188</code></td>
+</tr>
+<tr>
+<td>Global CTH clamp defaults</td>
+<td><code>GameSettings.cpp:1608‑1610</code> (max 99 / min 0)</td>
+</tr>
+<tr>
+<td>All tuning constants + defaults</td>
+<td><code>GameSettings.cpp:3673‑3813</code>, <code>CTHConstants.ini</code></td>
+</tr>
+</tbody></table></div>
+<p>*This report and the Tuning Lab were produced by reading the mod source directly and validating every figure by simulation; a separate adversarial review pass confirmed the formulas and corrected three points (the <code>NORMAL_SHOOTING_DISTANCE</code> non‑lever, the "one CTH value feeding geometry" framing, and the population‑selective nature of the <code>BASE_EXP/BASE_MARKS</code> rebalance).*</p>
+</main></body></html>
