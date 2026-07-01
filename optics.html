@@ -6,93 +6,94 @@
 </head><body>
 <div id="nav"></div>
 <div class="intro">
-  <h1>Optics — scopes &amp; lasers</h1>
-  <p>Scopes and lasers <b>shrink the cone of fire</b>. A scope divides the aperture by its magnification — but only as much as the shooter's skill can use (<code>SCOPE_EFFECTIVENESS_*</code>). Lasers shrink the base aperture by a flat % (better in the dark). This is why a low‑skill merc gets far less out of a big scope than a veteran.</p>
+  <h1>Optics — scopes, minimum ranges &amp; lasers</h1>
+  <p>Scopes shrink the cone — but only <b>beyond a minimum range</b>. Up close a scope's effective magnification is clamped back toward 1× and you take a "too‑close" aim penalty, so a big scope actually hits <b>worse</b> than iron sights at short range. Each optic has a sweet spot; this shows where. Pick a weapon and compare optics for <i>your</i> shooter.</p>
 </div>
 <div class="lab">
   <div class="col" id="c1"></div>
   <div class="col" id="c2"></div>
   <div class="col" id="c3"></div>
 </div>
-<div class="foot">Faithful to <code>CalcEffectiveMagFactor</code> / <code>CalcMagFactor</code> and the laser block in <code>AdjustTargetCenterPoint</code> (LOS.cpp).</div>
+<div class="foot">Faithful to <code>GetScopeMagnificationFactor</code> / <code>CalcMagFactor</code> (range clamp <code>min(mag,(range/NORMAL)/SCOPE_RANGE_MULTIPLIER)</code>), <code>CalcEffectiveMagFactor</code> (skill gate) and the too‑close penalty (Weapons.cpp:6552). Scope mags &amp; weapon stats from Items.xml / Weapons.xml.</div>
 <script>
 const N=NCTH, s=N.load();
 if(s.laser===undefined) s.laser=0;
 if(s.dark===undefined) s.dark=40;
+if(s.wpn===undefined) s.wpn=2;   // AK-74 by default
 document.getElementById('nav').innerHTML=N.nav('optics.html');
+const SC=[{n:'Iron',sight:'iron',mag:1,c:'#8b98ad'},{n:'2×',sight:'scope',mag:2,c:'#54d98c'},
+  {n:'4× ACOG',sight:'scope',mag:4,c:'#5cc8ff'},{n:'7×',sight:'scope',mag:7,c:'#ffcf5c'},
+  {n:'10× sniper',sight:'scope',mag:10,c:'#c58cff'}];
 
 document.getElementById('c1').innerHTML = N.shooterCard() +
-  `<div class="card"><h2>Optics &amp; gun</h2>
-    <div class="row"><label>Sight</label><div class="seg" data-seg="sight"><button data-v="iron">Iron</button><button data-v="scope">Scope</button></div></div>
-    <div class="row"><label>Scope magnification</label><span class="val"></span><input data-bind="mag" type="range" min="1" max="10" step="0.5" data-fmt="×"></div>
-    <div class="row"><label>Laser pointer</label><div class="seg" data-seg="laser" data-num><button data-v="0">Off</button><button data-v="1">On</button></div></div>
+  `<div class="card"><h2>Loadout &amp; light</h2>
+    <div class="row"><label>Weapon (sets handling / aim clicks)</label>
+      <select id="wpn">${N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('')}</select></div>
+    <div id="wnote" class="note"></div>
+    <div class="row"><label>Laser pointer (all optics)</label><div class="seg" data-seg="laser" data-num><button data-v="0">Off</button><button data-v="1">On</button></div></div>
     <div class="row"><label>Target darkness % (laser dot)</label><span class="val"></span><input data-bind="dark" type="range" min="0" max="100" step="5"></div>
-    <div class="row"><label>Weapon handling</label><span class="val"></span><input data-bind="handling" type="range" min="4" max="22" step="1"></div>
-    <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
   </div>`;
 
 document.getElementById('c2').innerHTML =
-  `<div class="chartbox"><h3>Real hit chance vs range</h3>
-    <p class="sub">How each optic tightens the group for THIS shooter.</p>
+  `<div class="chartbox"><h3>Real hit chance vs range — which optic wins?</h3>
+    <p class="sub">Notice each scope's close-range dead zone and where it overtakes iron sights.</p>
     <canvas id="hit" height="280"></canvas>
-    <div class="legend"><span><i class="swatch" style="background:#8b98ad"></i>Iron</span>
-      <span><i class="swatch" style="background:var(--good)"></i>Iron + laser</span>
-      <span><i class="swatch" style="background:var(--acc)"></i>Scope</span>
-      <span><i class="swatch" style="background:var(--prop)"></i>Scope + laser</span></div></div>
-  <div class="chartbox"><h3>How much of the scope the shooter actually gets</h3>
-    <p class="sub">Effective magnification vs marksmanship (this merc's exp fixed). Low skill is floored at <code>SCOPE_EFFECTIVENESS_MINIMUM</code>.</p>
-    <canvas id="eff" height="200"></canvas>
-    <div id="effnote" class="note"></div></div>`;
+    <div class="legend" id="leg"></div></div>
+  <div class="chartbox"><h3>Effective magnification vs range</h3>
+    <p class="sub">A scope ramps from 1× up to its full power only at its minimum range (dashed = the scope's rated power).</p>
+    <canvas id="mag" height="220"></canvas></div>
+  <div class="chartbox"><h3>Scope minimum ranges — for this shooter</h3>
+    <table id="tbl"></table></div>`;
 
 const TUNE=[
-  {label:'SCOPE_EFFECTIVENESS_MULTIPLIER',bind:'PROP.SCOPE_EFF_MULT',min:.5,max:1.5,step:.05},
+  {label:'SCOPE_RANGE_MULTIPLIER',bind:'PROP.SCOPE_RANGE_MULT',min:.3,max:1.5,step:.05},
   {label:'SCOPE_EFFECTIVENESS_MINIMUM',bind:'PROP.SCOPE_EFF_MIN',min:0,max:100,step:5},
+  {label:'SCOPE_EFFECTIVENESS_MULTIPLIER',bind:'PROP.SCOPE_EFF_MULT',min:.5,max:1.5,step:.05},
+  {label:'AIM_TOO_CLOSE_SCOPE',bind:'PROP.AIM_TOO_CLOSE',min:-10,max:0,step:.5},
+  {label:'AIM_TOO_CLOSE_THRESHOLD',bind:'PROP.AIM_TOO_CLOSE_THRESH',min:0,max:1,step:.05},
   {label:'LASER_PERFORMANCE_BONUS_IRON',bind:'PROP.LASER_IRON',min:0,max:50,step:5},
   {label:'LASER_PERFORMANCE_BONUS_SCOPE',bind:'PROP.LASER_SCOPE',min:0,max:50,step:5},
-  {label:'LASER_PERFORMANCE_BONUS_HIP',bind:'PROP.LASER_HIP',min:0,max:50,step:5},
-  {label:'NORMAL_SHOOTING_DISTANCE (scope range)',bind:'PROP.NORMAL_DIST',min:30,max:150,step:5},
-  {label:'IRON_SIGHT_PERFORMANCE_BONUS',bind:'PROP.IRON_PERF',min:-20,max:50,step:5},
+  {label:'NORMAL_SHOOTING_DISTANCE',bind:'PROP.NORMAL_DIST',min:30,max:150,step:5},
 ];
 document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE) +
   `<div class="card presets"><h2>Presets</h2><button id="pv">Reset to Vanilla</button>
     <button id="pl">Better optics for recruits</button>
-    <div class="note">"Better optics" raises <code>SCOPE_EFFECTIVENESS_MINIMUM</code> and laser bonuses on the PROPOSED side.</div></div>`;
+    <div class="note">"Better optics" raises <code>SCOPE_EFFECTIVENESS_MINIMUM</code> and laser bonuses, and softens the too-close penalty.</div></div>`;
+document.getElementById('leg').innerHTML=SC.map(o=>`<span><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('');
 
 const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
-function laserMul(C,sight){ if(!s.laser) return 1;
-  const bonus=sight==='scope'?C.LASER_SCOPE:C.LASER_IRON; return (100-bonus*s.dark/100)/100; }
-function hitSer(C,sight,useLaser){ return rng.map(d=>{
-  let apR=N.aperture(d*N.CELL,100-N.displayedCTH(s,C,s.maxaim),C,s,sight,s.mag,C.IRON_GRAD);
-  if(useLaser) apR*=laserMul(C,sight);
-  return [d,100*N.hitProb(apR,C,s)]; }); }
+function laserMul(C,sight){ if(!s.laser) return 1; const b=sight==='scope'?C.LASER_SCOPE:C.LASER_IRON; return (100-b*s.dark/100)/100; }
+function hitLine(C,o){ return rng.map(d=>{ let apR=N.aperture(d*N.CELL,100-N.displayedCTH(s,C,s.maxaim,{dTiles:d,sight:o.sight,mag:o.mag}),C,s,o.sight,o.mag,C.IRON_GRAD);
+  apR*=laserMul(C,o.sight); return [d,100*N.hitProb(apR,C,s)]; }); }
 
 function render(){
   const C=s.CUR;
-  N.lineChart(document.getElementById('hit'),{xmax:XMAX,xlabel:'range (tiles)',series:[
-    {name:'iron',color:'#8b98ad',data:hitSer(C,'iron',false)},
-    {name:'iron+laser',color:'#54d98c',data:hitSer(C,'iron',true)},
-    {name:'scope',color:'#5cc8ff',data:hitSer(C,'scope',false)},
-    {name:'scope+laser',color:'#c58cff',dash:[6,4],data:hitSer(C,'scope',true)},
-  ]});
-  // effective mag vs marksmanship
-  const mk=[]; for(let m=0;m<=100;m+=5){ mk.push([m, N.effMag(Object.assign({},s,{marks:m}),C,s.mag)]); }
-  const real=[[0,s.mag],[100,s.mag]];
-  N.lineChart(document.getElementById('eff'),{xmax:100,xstep:20,ymax:Math.max(2,Math.ceil(s.mag*C.SCOPE_EFF_MULT)),ystep:1,xlabel:'marksmanship',series:[
-    {name:'real',color:'#8b98ad',dash:[4,4],data:real},
-    {name:'eff',color:'#5cc8ff',data:mk},
-  ]});
-  const e=N.effMag(s,C,s.mag);
-  document.getElementById('effnote').innerHTML =
-    `This ${s.mag}× scope behaves like a <b>${e.toFixed(2)}×</b> for exp ${s.exp} / marks ${s.marks}. `+
-    (s.mag>1? `Skill unlocks ${(100*(e-1)/(s.mag*C.SCOPE_EFF_MULT-1)||0).toFixed(0)}% of the extra power; a veteran would get more.` : `Iron/1× sights are always fully effective.`);
+  // weapon note
+  const w=N.WEAPONS[s.wpn]; document.getElementById('wnote').innerHTML=`Handling <b>${s.handling}</b> · max aim <b>${s.maxaim}</b>`;
+  N.lineChart(document.getElementById('hit'),{xmax:XMAX,xlabel:'range (tiles)',series:SC.map(o=>({name:o.n,color:o.c,data:hitLine(C,o)}))});
+  const maxMag=Math.ceil(10*C.SCOPE_EFF_MULT);
+  N.lineChart(document.getElementById('mag'),{xmax:XMAX,ymax:maxMag,ystep:2,xlabel:'range (tiles)',series:
+    SC.filter(o=>o.mag>1).map(o=>({name:o.n,color:o.c,data:rng.map(d=>[d,N.scopeEffMag(s,C,o.mag,d)])}))
+    .concat(SC.filter(o=>o.mag>1).map(o=>({name:o.n,color:o.c,w:1,dash:[3,4],data:[[2,o.mag],[XMAX,o.mag]]})))});
+  let h='<tr><th>Optic</th><th>Min range</th><th>Eff. mag there</th><th>Best hit</th></tr>';
+  SC.filter(o=>o.mag>1).forEach(o=>{ const mr=N.scopeMinRange(C,o.mag);
+    const em=N.scopeEffMag(s,C,o.mag,mr);
+    // best hit range = argmax of hitLine
+    const line=hitLine(C,o); let best=line[0]; line.forEach(p=>{ if(p[1]>best[1]) best=p; });
+    h+=`<tr><td style="color:${o.c}">${o.n}</td><td>${mr.toFixed(0)} tiles</td><td>${em.toFixed(1)}× / ${o.mag}×</td><td>${best[0]}t (${N.pill(best[1])})</td></tr>`; });
+  document.getElementById('tbl').innerHTML=h;
 }
 const root=document.querySelector('.lab');
 N.bind(root,s,render);
+const wsel=document.getElementById('wpn'); wsel.value=s.wpn;
+wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil; N.save(s); render(); };
 function refreshProp(){ root.querySelectorAll('[data-bind^="PROP."]').forEach(el=>{ const k=el.dataset.bind.split('.')[1];
-    if(el.type==='range'){ el.value=s.PROP[k]; const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; } }); }
+  if(el.type==='range'){ el.value=s.PROP[k]; const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; } }); }
 document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); s.PROP=Object.assign({},N.DEFAULTS); N.save(s); refreshProp(); render(); };
-document.getElementById('pl').onclick=()=>{ Object.assign(s.PROP,{SCOPE_EFF_MIN:70,LASER_IRON:25,LASER_SCOPE:20}); N.save(s); refreshProp(); render(); };
+document.getElementById('pl').onclick=()=>{ Object.assign(s.PROP,{SCOPE_EFF_MIN:70,LASER_IRON:25,LASER_SCOPE:20,AIM_TOO_CLOSE:-2}); N.save(s); refreshProp(); render(); };
 window.addEventListener('resize',render);
+// apply current weapon to state on load
+{ const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; }
 render();
 </script>
 </body></html>

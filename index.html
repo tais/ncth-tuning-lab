@@ -23,6 +23,7 @@ document.getElementById('nav').innerHTML=N.nav('index.html');
 document.getElementById('c1').innerHTML =
   N.shooterCard() +
   `<div class="card"><h2>The Gun &amp; Situation</h2>
+    <div class="row"><label>Weapon example</label><select id="wpn">${N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('')}</select></div>
     <div class="row"><label>Weapon handling (rifle≈11)</label><span class="val"></span><input data-bind="handling" type="range" min="4" max="22" step="1"></div>
     <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
     <div class="row"><label>Sight</label><div class="seg" data-seg="sight"><button data-v="iron">Iron</button><button data-v="scope">Scope</button></div></div>
@@ -127,6 +128,12 @@ function render(){
 }
 const root=document.querySelector('.lab');
 N.bind(root, s, render);
+if(s.wpn===undefined) s.wpn=2;
+const wsel=document.getElementById('wpn'); wsel.value=s.wpn;
+wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil;
+  root.querySelectorAll('[data-bind="handling"],[data-bind="maxaim"]').forEach(el=>{ el.value=el.dataset.bind==='handling'?s.handling:s.maxaim;
+    const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; });
+  N.save(s); render(); };
 function refreshProp(){
   root.querySelectorAll('[data-bind^="PROP."]').forEach(el=>{ const k=el.dataset.bind.split('.')[1];
     if(el.type==='range'){ el.value=s.PROP[k]; const out=el.parentElement.querySelector('.val'); if(out) out.textContent=el.value; } });

@@ -9,6 +9,7 @@ const CELL=10, RAD=Math.PI/180;
 const DEFAULTS={
   DEG_APERTURE:15, NORMAL_DIST:70, IRON_PERF:20, IRON_GRAD:1, IRON_MOD:3, VERT_BIAS:0.5,
   SCOPE_EFF_MULT:1.1, SCOPE_EFF_MIN:50, LASER_IRON:15, LASER_HIP:25, LASER_SCOPE:10,
+  SCOPE_RANGE_MULT:0.7, AIM_TOO_CLOSE:-4, AIM_TOO_CLOSE_THRESH:0.8,
   BASE_EXP:3, BASE_MARKS:1, BASE_WIS:1, BASE_DEX:1, BASE_DRAW:2,
   BASE_STAND:2, BASE_CROUCH:3, BASE_PRONE:4,
   BASE_INJURY:-30, BASE_FATIGUE:-15, BASE_SHOCK:-150, BASE_HIMORALE:2, BASE_LOMORALE:-1, BASE_GASSED:-15,
@@ -83,8 +84,9 @@ function condMods(s,C){
   return {base,aim};
 }
 
-// displayed CTH at aim level t
-function displayedCTH(s,C,t){
+// displayed CTH at aim level t. opts:{dTiles,sight,mag} enable the scope too-close penalty
+function displayedCTH(s,C,t,opts){
+  opts=opts||{};
   let base=baseAttr(s,C);
   if(base<=C.MIN_CTH) return C.MIN_CTH;
   const cm=condMods(s,C);
@@ -92,7 +94,14 @@ function displayedCTH(s,C,t){
   base=Math.max(0,Math.min(100, base*(100+baseMod)/100));
   if(t<=0) return Math.max(C.MIN_CTH, Math.min(base,C.MAX_CTH));
   let cap=Math.min(Math.max(capAttr(s,C), Math.max(0,base)), C.MAX_CTH);
-  const aimMod=-(C.AIM_DRAW*s.handling*stanceAim(s,C)) + playerDiff(s) + cm.aim;
+  let aimMod=-(C.AIM_DRAW*s.handling*stanceAim(s,C)) + playerDiff(s) + cm.aim;
+  // scope "too close" aim penalty (Weapons.cpp:6552) — a scope below its min range hurts aiming
+  const sight=opts.sight||s.sight, mag=(opts.mag!==undefined?opts.mag:s.mag), dT=opts.dTiles;
+  if(sight==='scope' && mag>1 && dT){
+    const rangeU=dT*CELL, best=mag*C.NORMAL_DIST*C.SCOPE_RANGE_MULT;
+    if(rangeU < best*C.AIM_TOO_CLOSE_THRESH)
+      aimMod += (best*C.AIM_TOO_CLOSE_THRESH/rangeU) * C.AIM_TOO_CLOSE * (mag/2);
+  }
   let span=Math.max(0,(cap-base)*(100+aimMod)/100);
   const div=s.maxaim*(s.maxaim+1)/2, frac=span/div;
   let pts=0; for(let x=0;x<t;x++) pts+=frac*(s.maxaim-x);
@@ -112,7 +121,7 @@ function aperture(dUnits,sway,C,s,sight,mag,grad){
   let basic=Math.sin(C.DEG_APERTURE*RAD)*C.NORMAL_DIST;
   const dTiles=dUnits/CELL;
   let m=1;
-  if(sight==='scope'){ m=effMag(s,C,mag); }
+  if(sight==='scope'){ m=scopeEffMag(s,C,mag,dTiles); }   // range-clamped + skill-gated
   else { // iron
     if(grad) basic*=(1/Math.sqrt(dTiles)/C.IRON_MOD + (C.IRON_MOD-1)/C.IRON_MOD);
     basic*=(100-C.IRON_PERF)/100;
@@ -120,6 +129,14 @@ function aperture(dUnits,sway,C,s,sight,mag,grad){
   const dist=basic*(dUnits/C.NORMAL_DIST);
   return Math.max(0, dist/m*sway/100);
 }
+// effective scope magnification AT a given range: min(scopeMag, (range/NORMAL)/rangeMult) then skill-gated
+function scopeEffMag(s,C,mag,dTiles){
+  if(mag<=1) return 1;
+  const tmf=Math.max(1,(dTiles*CELL/C.NORMAL_DIST)/C.SCOPE_RANGE_MULT);
+  return effMag(s,C,Math.min(mag,tmf));
+}
+// range (tiles) at which a scope first reaches full magnification
+function scopeMinRange(C,mag){ return mag*C.NORMAL_DIST*C.SCOPE_RANGE_MULT/CELL; }
 const vbias=(s,C)=> s.stance==='stand'?1 : s.stance==='prone'?C.VERT_BIAS : 1+(C.VERT_BIAS-1)*0.66;
 
 // Monte-Carlo hit chance for an aimed shot; optional vertical center offset (recoil)
@@ -135,8 +152,9 @@ function hitProb(apR,C,s,offY,n){
   return h/n;
 }
 function realHit(s,C,dTiles,t,sight,mag,grad){
-  const cth=displayedCTH(s,C,t), sway=100-cth;
-  const apR=aperture(dTiles*CELL,sway,C,s,sight||s.sight,mag||s.mag,grad);
+  sight=sight||s.sight; mag=mag||s.mag;
+  const cth=displayedCTH(s,C,t,{dTiles,sight,mag}), sway=100-cth;
+  const apR=aperture(dTiles*CELL,sway,C,s,sight,mag,grad);
   return {cth,sway,apR,p:hitProb(apR,C,s)};
 }
 
@@ -255,8 +273,28 @@ function lineChart(cv, o){
 function pill(v){ const c=v>=55?'p-good':v>=30?'p-warn':'p-bad'; return `<span class="pill ${c}">${Math.round(v)}%</span>`; }
 
 // export
-window.NCTH={ DEFAULTS, load, save, freshState,
-  baseAttr, capAttr, condMods, displayedCTH, effMag, aperture, hitProb, realHit,
+// representative loadouts (from Weapons.xml / Items.xml)
+const WEAPONS=[
+  {name:'Pistol (Glock 18)',    handling:9,  maxaim:3, gunRecoil:13},
+  {name:'SMG (MP5)',            handling:8,  maxaim:4, gunRecoil:6},
+  {name:'Assault rifle (AK-74)',handling:11, maxaim:4, gunRecoil:7},
+  {name:'Battle rifle (FN FAL)',handling:12, maxaim:5, gunRecoil:9},
+  {name:'LMG (MG36)',           handling:13, maxaim:4, gunRecoil:6},
+  {name:'Shotgun (SPAS-15)',    handling:10, maxaim:3, gunRecoil:6},
+  {name:'Sniper rifle (SVD)',   handling:12, maxaim:6, gunRecoil:0},
+];
+const SCOPES=[
+  {name:'Iron sights',      sight:'iron',  mag:1},
+  {name:'Reflex / red-dot', sight:'iron',  mag:1},
+  {name:'2× scope',         sight:'scope', mag:2},
+  {name:'3.5× (G36)',       sight:'scope', mag:3.5},
+  {name:'4× ACOG / PSO-1',  sight:'scope', mag:4},
+  {name:'7× scope',         sight:'scope', mag:7},
+  {name:'10× sniper scope', sight:'scope', mag:10},
+];
+
+window.NCTH={ DEFAULTS, WEAPONS, SCOPES, load, save, freshState,
+  baseAttr, capAttr, condMods, displayedCTH, effMag, scopeEffMag, scopeMinRange, aperture, hitProb, realHit,
   cfAccuracy, cfMax, burst, vbias,
   nav, bind, shooterCard, tuningCard, lineChart, pill, CELL };
 })();
