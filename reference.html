@@ -9,9 +9,10 @@
   .tools input[type=search]{flex:1 1 260px;background:var(--panel2);color:var(--ink);border:1px solid #37425a;border-radius:7px;padding:8px 11px;font-size:13px}
   .chip{background:var(--panel2);border:1px solid #37425a;color:var(--mut);border-radius:20px;padding:5px 11px;cursor:pointer;font-size:12px}
   .chip.on{background:var(--acc);color:#06202e;border-color:var(--acc);font-weight:700}
+  .tablewrap{max-height:calc(100vh - 210px);overflow:auto;border:1px solid var(--line);border-radius:8px}
   table.ref{border-collapse:collapse;width:100%;font-size:12.5px}
   table.ref th,table.ref td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
-  table.ref th{position:sticky;top:96px;background:#232a38;color:var(--mut);cursor:default}
+  table.ref th{position:sticky;top:0;z-index:2;background:#232a38;color:var(--mut);cursor:default;box-shadow:inset 0 -1px 0 var(--line)}
   table.ref td.k{font-family:ui-monospace,Menlo,monospace;color:#bfe3ff;white-space:nowrap}
   table.ref td.v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:#fff}
   tr.rel-HIGH{background:rgba(255,207,92,.07)}
@@ -32,8 +33,10 @@
     <span class="chip" id="hionly">HIGH impact only</span>
   </div>
   <div class="count" id="count"></div>
+  <div class="tablewrap">
   <table class="ref"><thead><tr><th>Key</th><th>Section</th><th>Value</th><th>Impact</th><th>Raising it →</th><th>What it does</th></tr></thead>
   <tbody id="rows"></tbody></table>
+  </div>
 </div>
 <script>
 const N=NCTH, P=window.NCTH_PARAMS;
