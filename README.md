@@ -20,12 +20,18 @@ The Lab reproduces the exact code path (including the `sqrt(uniform)` muzzle dra
 - Highest‑leverage, low‑risk fixes: raise `IRON_SIGHT_PERFORMANCE_BONUS`, lower `DEGREES_MAXIMUM_APERTURE` a little, lower `IRON_SIGHTS_MAX_APERTURE_MODIFIER` toward 2.0, rebalance `BASE_EXP`↓ / `BASE_MARKS`↑, lower `MAX_BULLET_DEV`. **Do not** lower `NORMAL_SHOOTING_DISTANCE` (it cancels out of the iron‑sight cone and worsens bullet scatter).
 - See [`report.md`](report.md) for the full source‑grounded analysis, formulas, parameter table and ready‑to‑try recipes.
 
-## Files
-| File | Purpose |
+## Pages
+The lab is split into focused tabs (shared top nav; your merc + tuning persist across tabs via `localStorage`):
+
+| Page | Purpose |
 |---|---|
-| `index.html` | The interactive Tuning Lab (open locally or via the live site) |
-| `report.html` / `report.md` | Full analysis & tuning guide |
-| `chart*.svg` | Figures used in the report |
+| `index.html` | **Accuracy** — one aimed shot: displayed CTH, muzzle-sway cone, real hit vs range |
+| `optics.html` | **Optics** — scope effectiveness (skill-gated) and laser bonuses |
+| `conditions.html` | **Conditions** — injury / fatigue / morale / suppression-shock / drink / gas |
+| `autofire.html` | **Recoil & Autofire** — per-bullet muzzle-walk across a burst |
+| `reference.html` | **All parameters** — searchable table of all 113 `CTHConstants` keys + `Ja2_Options` |
+| `report.html` / `report.md` | Full written analysis & tuning guide |
+| `assets/` | `style.css`, `ncth.js` (shared model, faithful to source), `params.js` (reference data) |
 
 Everything is static — no build step, no dependencies. Open `index.html` in any browser.
 

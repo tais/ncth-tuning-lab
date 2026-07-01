@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NCTH Lab — Conditions</title>
+<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
+</head><body>
+<div id="nav"></div>
+<div class="intro">
+  <h1>Conditions — hurt, tired, suppressed, drunk</h1>
+  <p>Wounds, fatigue, low morale, suppression shock, drink and gas all reduce CTH — some far more than others. They apply as percentage penalties to <b>both</b> the base chance and the aim span. Suppression shock is the biggest (and low‑exp mercs accrue it fastest), which is why a recruit under fire feels helpless.</p>
+</div>
+<div class="lab">
+  <div class="col" id="c1"></div>
+  <div class="col" id="c2"></div>
+  <div class="col" id="c3"></div>
+</div>
+<div class="foot">Faithful to <code>CalcNewChanceToHitBaseEffectBonus</code> / <code>CalcNewChanceToHitAimEffectBonus</code> (Weapons.cpp).</div>
+<script>
+const N=NCTH, s=N.load();
+document.getElementById('nav').innerHTML=N.nav('conditions.html');
+const BASE_DRUNK=[-5,-20,-50,-10], AIM_DRUNK=[-10,-40,-90,-15];
+
+document.getElementById('c1').innerHTML = N.shooterCard() +
+  `<div class="card"><h2>Condition</h2>
+    <div class="row"><label>Health %</label><span class="val"></span><input data-bind="health" type="range" min="10" max="100" step="5"></div>
+    <div class="row"><label>Breath / stamina %</label><span class="val"></span><input data-bind="breath" type="range" min="0" max="100" step="5"></div>
+    <div class="row"><label>Morale (± vs 50)</label><span class="val"></span><input data-bind="morale" type="range" min="-10" max="10" step="1"></div>
+    <div class="row"><label>Suppression shock (0–30)</label><span class="val"></span><input data-bind="shock" type="range" min="0" max="30" step="1"></div>
+    <div class="row"><label>Drink</label><select data-bind="drunk" data-num>
+      <option value="0">Sober</option><option value="1">Tipsy</option><option value="2">Drunk</option><option value="3">Wasted</option><option value="4">Hungover</option></select></div>
+    <div class="row"><label>Gassed (no mask)</label><div class="seg" data-seg="gassed" data-num><button data-v="0">No</button><button data-v="1">Yes</button></div></div>
+    <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
+  </div>`;
+
+document.getElementById('c2').innerHTML =
+  `<div class="chartbox"><h3>Real hit chance vs range</h3>
+    <p class="sub">Healthy baseline vs this merc's current condition (max aim).</p>
+    <canvas id="hit" height="280"></canvas>
+    <div class="legend"><span><i class="swatch" style="background:var(--good)"></i>Healthy</span>
+      <span><i class="swatch" style="background:var(--bad)"></i>Current condition</span></div></div>
+  <div class="chartbox"><h3>What each condition costs</h3>
+    <p class="sub">Penalty applied to base chance and aim span (percentage points).</p>
+    <table id="brk"></table></div>`;
+
+const TUNE=[
+  {label:'BASE_INJURY',bind:'PROP.BASE_INJURY',min:-100,max:0,step:5},
+  {label:'AIM_INJURY',bind:'PROP.AIM_INJURY',min:-100,max:0,step:5},
+  {label:'BASE_FATIGUE',bind:'PROP.BASE_FATIGUE',min:-60,max:0,step:5},
+  {label:'AIM_FATIGUE',bind:'PROP.AIM_FATIGUE',min:-100,max:0,step:5},
+  {label:'BASE_SHOCK',bind:'PROP.BASE_SHOCK',min:-300,max:0,step:10},
+  {label:'AIM_SHOCK',bind:'PROP.AIM_SHOCK',min:-300,max:0,step:10},
+  {label:'BASE_GASSED',bind:'PROP.BASE_GASSED',min:-60,max:0,step:5},
+  {label:'AIM_GASSED',bind:'PROP.AIM_GASSED',min:-120,max:0,step:5},
+];
+document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE) +
+  `<div class="card presets"><h2>Presets</h2><button id="pv">Reset to Vanilla</button>
+    <button id="ph">Halve suppression penalties</button>
+    <div class="note">Suppression shock is the harshest; halving it makes recruits far less helpless under fire.</div></div>`;
+
+const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
+const healthy=()=>Object.assign({},s,{health:100,breath:100,morale:0,shock:0,drunk:0,gassed:0});
+function render(){
+  const C=s.CUR, hs=healthy();
+  N.lineChart(document.getElementById('hit'),{xmax:XMAX,xlabel:'range (tiles)',series:[
+    {name:'healthy',color:'#54d98c',data:rng.map(d=>[d,100*N.realHit(hs,C,d,s.maxaim,s.sight,s.mag,C.IRON_GRAD).p])},
+    {name:'now',color:'#ff6b6b',data:rng.map(d=>[d,100*N.realHit(s,C,d,s.maxaim,s.sight,s.mag,C.IRON_GRAD).p])},
+  ]});
+  const rows=[
+    ['Injury', C.BASE_INJURY*(100-s.health)/100, C.AIM_INJURY*(100-s.health)/100],
+    ['Fatigue', C.BASE_FATIGUE*(100-s.breath)/100, C.AIM_FATIGUE*(100-s.breath)/100],
+    ['Suppression shock', C.BASE_SHOCK*s.shock/30, C.AIM_SHOCK*s.shock/30],
+    ['Morale', s.morale>0?C.BASE_HIMORALE*s.morale:C.BASE_LOMORALE*(-s.morale), s.morale>0?C.AIM_HIMORALE*s.morale:C.AIM_LOMORALE*(-s.morale)],
+    ['Drink', s.drunk?BASE_DRUNK[s.drunk-1]:0, s.drunk?AIM_DRUNK[s.drunk-1]:0],
+    ['Gassed', s.gassed?C.BASE_GASSED:0, s.gassed?C.AIM_GASSED:0],
+  ];
+  let h='<tr><th>Condition</th><th>Base mod</th><th>Aim mod</th></tr>';
+  rows.forEach(r=>{ const cls=v=>v<-0.5?'style="color:var(--bad)"':(v>0.5?'style="color:var(--good)"':'');
+    h+=`<tr><td>${r[0]}</td><td ${cls(r[1])}>${r[1].toFixed(0)}%</td><td ${cls(r[2])}>${r[2].toFixed(0)}%</td></tr>`; });
+  const cthH=N.displayedCTH(hs,C,s.maxaim), cthN=N.displayedCTH(s,C,s.maxaim);
+  const rH=N.realHit(hs,C,10,s.maxaim,s.sight,s.mag,C.IRON_GRAD).p, rN=N.realHit(s,C,10,s.maxaim,s.sight,s.mag,C.IRON_GRAD).p;
+  h+=`<tr><td><b>Displayed CTH (max aim)</b></td><td>${cthH.toFixed(0)}%→</td><td><b>${cthN.toFixed(0)}%</b></td></tr>`;
+  h+=`<tr><td><b>Real hit @10 tiles</b></td><td>${N.pill(100*rH)}→</td><td><b>${N.pill(100*rN)}</b></td></tr>`;
+  document.getElementById('brk').innerHTML=h;
+}
+const root=document.querySelector('.lab');
+N.bind(root,s,render);
+function refreshProp(){ root.querySelectorAll('[data-bind^="PROP."]').forEach(el=>{ const k=el.dataset.bind.split('.')[1];
+  if(el.type==='range'){ el.value=s.PROP[k]; const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; } }); }
+document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); s.PROP=Object.assign({},N.DEFAULTS); N.save(s); refreshProp(); render(); };
+document.getElementById('ph').onclick=()=>{ Object.assign(s.PROP,{BASE_SHOCK:-75,AIM_SHOCK:-75}); N.save(s); refreshProp(); render(); };
+window.addEventListener('resize',render);
+render();
+</script>
+</body></html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NCTH Lab — Recoil &amp; Autofire</title>
+<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
+</head><body>
+<div id="nav"></div>
+<div class="intro">
+  <h1>Recoil &amp; Autofire — the muzzle walk</h1>
+  <p>The <b>first</b> bullet of a burst is the aimed shot; every bullet after it adds recoil that pushes the muzzle off target. Strength &amp; agility set how much force you <i>can</i> apply (<code>CalcCounterForceMax</code>); dexterity/wisdom/agility/experience set how <i>accurately</i> you apply it (<code>CalcCounterForceAccuracy</code>). Low‑skill mercs can't tame the climb, so their spray walks off the target.</p>
+</div>
+<div class="lab">
+  <div class="col" id="c1"></div>
+  <div class="col" id="c2"></div>
+  <div class="col" id="c3"></div>
+</div>
+<div class="foot"><b>Simplified conceptual model.</b> It uses the exact <code>CalcCounterForceAccuracy</code> &amp; <code>CalcCounterForceMax</code> formulas but approximates the per‑bullet correction loop of <code>CalcRecoilOffset</code> (real muzzle-walk is 2‑axis and gun-specific). Directions &amp; levers are faithful.</div>
+<script>
+const N=NCTH, s=N.load();
+if(s.aprange===undefined) s.aprange=10;
+document.getElementById('nav').innerHTML=N.nav('autofire.html');
+
+document.getElementById('c1').innerHTML = N.shooterCard({extraStats:true}) +
+  `<div class="card"><h2>Burst / autofire</h2>
+    <div class="row"><label>Bullets in volley</label><span class="val"></span><input data-bind="bullets" type="range" min="1" max="12" step="1"></div>
+    <div class="row"><label>Gun recoil per bullet</label><span class="val"></span><input data-bind="gunRecoil" type="range" min="0" max="20" step="1"></div>
+    <div class="row"><label>Range (tiles)</label><span class="val"></span><input data-bind="aprange" type="range" min="2" max="40" step="1"></div>
+    <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
+    <div class="row"><label>Weapon handling</label><span class="val"></span><input data-bind="handling" type="range" min="4" max="22" step="1"></div>
+    <div class="note">Prone/crouch add counter-force (set stance above). Strength &amp; agility are the recoil-taming stats.</div>
+  </div>`;
+
+document.getElementById('c2').innerHTML =
+  `<div class="chartbox"><h3>Hit chance per bullet in the volley</h3>
+    <p class="sub">Bullet #1 is the aimed shot; later bullets fall off as recoil accumulates faster than the shooter can counter it.</p>
+    <canvas id="perb" height="240"></canvas>
+    <div class="legend"><span><i class="swatch" style="background:var(--good)"></i>CURRENT</span>
+      <span><i class="swatch" style="background:var(--prop)"></i>PROPOSED</span></div>
+    <div id="sum" class="note"></div></div>
+  <div class="chartbox"><h3>Muzzle walk (CURRENT)</h3>
+    <p class="sub">Each dot = one bullet's aim-centre climbing off the target box.</p>
+    <canvas id="walk" height="220"></canvas></div>`;
+
+const TUNE=[
+  {label:'RECOIL_MAX_COUNTER_STR',bind:'PROP.RC_MAX_STR',min:0,max:6,step:.5},
+  {label:'RECOIL_MAX_COUNTER_AGI',bind:'PROP.RC_MAX_AGI',min:0,max:6,step:.5},
+  {label:'RECOIL_MAX_COUNTER_FORCE',bind:'PROP.RC_MAX_FORCE',min:2,max:30,step:1},
+  {label:'RECOIL_MAX_COUNTER_CROUCH',bind:'PROP.RC_MAX_CROUCH',min:0,max:40,step:5},
+  {label:'RECOIL_MAX_COUNTER_PRONE',bind:'PROP.RC_MAX_PRONE',min:0,max:50,step:5},
+  {label:'RECOIL_COUNTER_ACCURACY_DEX',bind:'PROP.RCA_DEX',min:0,max:6,step:.5},
+  {label:'RECOIL_COUNTER_ACCURACY_EXP',bind:'PROP.RCA_EXP',min:0,max:6,step:.5},
+  {label:'NORMAL_RECOIL_DISTANCE',bind:'PROP.NORMAL_RECOIL_DIST',min:30,max:200,step:10},
+];
+document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE) +
+  `<div class="card presets"><h2>Presets</h2><button id="pv">Reset to Vanilla</button>
+    <button id="pc">Tamer autofire</button>
+    <div class="note">"Tamer autofire" raises counter-force on the PROPOSED side.</div></div>`;
+
+function perBullet(C){ return N.burst(s,C,s.aprange,s.maxaim,s.sight,s.mag,C.IRON_GRAD); }
+function drawWalk(b){
+  const cv=document.getElementById('walk'); const w=cv.parentElement.clientWidth-28; cv.width=w; cv.style.width=w+'px';
+  const ctx=cv.getContext('2d'), H=cv.height; ctx.clearRect(0,0,w,H);
+  const maxOff=Math.max(s.th*1.5, ...b.rows.map(r=>Math.abs(r.offY)))||10;
+  const scaleY=(H*0.42)/maxOff, cyc=H*0.62, cx0=44, cxN=w-20;
+  // target band
+  ctx.fillStyle='rgba(84,217,140,.12)'; ctx.strokeStyle='rgba(84,217,140,.8)';
+  ctx.fillRect(cx0-8,cyc-s.th*scaleY,cxN-cx0+16,2*s.th*scaleY); ctx.strokeRect(cx0-8,cyc-s.th*scaleY,cxN-cx0+16,2*s.th*scaleY);
+  ctx.fillStyle='#93a1b5'; ctx.font='11px sans-serif'; ctx.fillText('target',cx0-8,cyc-s.th*scaleY-4);
+  b.rows.forEach((r,i)=>{ const x=cx0+(b.rows.length>1?(cxN-cx0)*i/(b.rows.length-1):0), y=cyc-r.offY*scaleY;
+    const inb=Math.abs(r.offY)<=s.th; ctx.fillStyle=inb?'#54d98c':'#ff6b6b';
+    ctx.beginPath(); ctx.arc(x,y,4,0,7); ctx.fill();
+    ctx.fillStyle='#6f7d92'; ctx.fillText('#'+(i+1),x-6,H-6); });
+}
+function render(){
+  const bC=perBullet(s.CUR), bP=perBullet(s.PROP);
+  N.lineChart(document.getElementById('perb'),{xmax:Math.max(2,s.bullets),xstep:1,xlabel:'bullet #',series:[
+    {name:'cur',color:'#54d98c',data:bC.rows.map(r=>[r.i,100*r.p])},
+    {name:'prop',color:'#c58cff',dash:[6,4],data:bP.rows.map(r=>[r.i,100*r.p])},
+  ]});
+  drawWalk(bC);
+  document.getElementById('sum').innerHTML =
+    `Average hit across the volley: CURRENT <b>${(100*bC.avg).toFixed(0)}%</b> · PROPOSED <b style="color:var(--prop)">${(100*bP.avg).toFixed(0)}%</b>. `+
+    `Counter-force accuracy <b>${N.cfAccuracy(s,s.CUR).toFixed(0)}%</b>, max counter-force <b>${N.cfMax(s,s.CUR).toFixed(1)}</b> vs recoil <b>${s.gunRecoil}</b>/bullet.`;
+}
+const root=document.querySelector('.lab');
+N.bind(root,s,render);
+function refreshProp(){ root.querySelectorAll('[data-bind^="PROP."]').forEach(el=>{ const k=el.dataset.bind.split('.')[1];
+  if(el.type==='range'){ el.value=s.PROP[k]; const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; } }); }
+document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); s.PROP=Object.assign({},N.DEFAULTS); N.save(s); refreshProp(); render(); };
+document.getElementById('pc').onclick=()=>{ Object.assign(s.PROP,{RC_MAX_FORCE:16,RC_MAX_STR:3.5,RCA_DEX:4}); N.save(s); refreshProp(); render(); };
+window.addEventListener('resize',render);
+render();
+</script>
+</body></html>

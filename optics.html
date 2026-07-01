@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NCTH Lab — Optics</title>
+<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
+</head><body>
+<div id="nav"></div>
+<div class="intro">
+  <h1>Optics — scopes &amp; lasers</h1>
+  <p>Scopes and lasers <b>shrink the cone of fire</b>. A scope divides the aperture by its magnification — but only as much as the shooter's skill can use (<code>SCOPE_EFFECTIVENESS_*</code>). Lasers shrink the base aperture by a flat % (better in the dark). This is why a low‑skill merc gets far less out of a big scope than a veteran.</p>
+</div>
+<div class="lab">
+  <div class="col" id="c1"></div>
+  <div class="col" id="c2"></div>
+  <div class="col" id="c3"></div>
+</div>
+<div class="foot">Faithful to <code>CalcEffectiveMagFactor</code> / <code>CalcMagFactor</code> and the laser block in <code>AdjustTargetCenterPoint</code> (LOS.cpp).</div>
+<script>
+const N=NCTH, s=N.load();
+if(s.laser===undefined) s.laser=0;
+if(s.dark===undefined) s.dark=40;
+document.getElementById('nav').innerHTML=N.nav('optics.html');
+
+document.getElementById('c1').innerHTML = N.shooterCard() +
+  `<div class="card"><h2>Optics &amp; gun</h2>
+    <div class="row"><label>Sight</label><div class="seg" data-seg="sight"><button data-v="iron">Iron</button><button data-v="scope">Scope</button></div></div>
+    <div class="row"><label>Scope magnification</label><span class="val"></span><input data-bind="mag" type="range" min="1" max="10" step="0.5" data-fmt="×"></div>
+    <div class="row"><label>Laser pointer</label><div class="seg" data-seg="laser" data-num><button data-v="0">Off</button><button data-v="1">On</button></div></div>
+    <div class="row"><label>Target darkness % (laser dot)</label><span class="val"></span><input data-bind="dark" type="range" min="0" max="100" step="5"></div>
+    <div class="row"><label>Weapon handling</label><span class="val"></span><input data-bind="handling" type="range" min="4" max="22" step="1"></div>
+    <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
+  </div>`;
+
+document.getElementById('c2').innerHTML =
+  `<div class="chartbox"><h3>Real hit chance vs range</h3>
+    <p class="sub">How each optic tightens the group for THIS shooter.</p>
+    <canvas id="hit" height="280"></canvas>
+    <div class="legend"><span><i class="swatch" style="background:#8b98ad"></i>Iron</span>
+      <span><i class="swatch" style="background:var(--good)"></i>Iron + laser</span>
+      <span><i class="swatch" style="background:var(--acc)"></i>Scope</span>
+      <span><i class="swatch" style="background:var(--prop)"></i>Scope + laser</span></div></div>
+  <div class="chartbox"><h3>How much of the scope the shooter actually gets</h3>
+    <p class="sub">Effective magnification vs marksmanship (this merc's exp fixed). Low skill is floored at <code>SCOPE_EFFECTIVENESS_MINIMUM</code>.</p>
+    <canvas id="eff" height="200"></canvas>
+    <div id="effnote" class="note"></div></div>`;
+
+const TUNE=[
+  {label:'SCOPE_EFFECTIVENESS_MULTIPLIER',bind:'PROP.SCOPE_EFF_MULT',min:.5,max:1.5,step:.05},
+  {label:'SCOPE_EFFECTIVENESS_MINIMUM',bind:'PROP.SCOPE_EFF_MIN',min:0,max:100,step:5},
+  {label:'LASER_PERFORMANCE_BONUS_IRON',bind:'PROP.LASER_IRON',min:0,max:50,step:5},
+  {label:'LASER_PERFORMANCE_BONUS_SCOPE',bind:'PROP.LASER_SCOPE',min:0,max:50,step:5},
+  {label:'LASER_PERFORMANCE_BONUS_HIP',bind:'PROP.LASER_HIP',min:0,max:50,step:5},
+  {label:'NORMAL_SHOOTING_DISTANCE (scope range)',bind:'PROP.NORMAL_DIST',min:30,max:150,step:5},
+  {label:'IRON_SIGHT_PERFORMANCE_BONUS',bind:'PROP.IRON_PERF',min:-20,max:50,step:5},
+];
+document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE) +
+  `<div class="card presets"><h2>Presets</h2><button id="pv">Reset to Vanilla</button>
+    <button id="pl">Better optics for recruits</button>
+    <div class="note">"Better optics" raises <code>SCOPE_EFFECTIVENESS_MINIMUM</code> and laser bonuses on the PROPOSED side.</div></div>`;
+
+const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
+function laserMul(C,sight){ if(!s.laser) return 1;
+  const bonus=sight==='scope'?C.LASER_SCOPE:C.LASER_IRON; return (100-bonus*s.dark/100)/100; }
+function hitSer(C,sight,useLaser){ return rng.map(d=>{
+  let apR=N.aperture(d*N.CELL,100-N.displayedCTH(s,C,s.maxaim),C,s,sight,s.mag,C.IRON_GRAD);
+  if(useLaser) apR*=laserMul(C,sight);
+  return [d,100*N.hitProb(apR,C,s)]; }); }
+
+function render(){
+  const C=s.CUR;
+  N.lineChart(document.getElementById('hit'),{xmax:XMAX,xlabel:'range (tiles)',series:[
+    {name:'iron',color:'#8b98ad',data:hitSer(C,'iron',false)},
+    {name:'iron+laser',color:'#54d98c',data:hitSer(C,'iron',true)},
+    {name:'scope',color:'#5cc8ff',data:hitSer(C,'scope',false)},
+    {name:'scope+laser',color:'#c58cff',dash:[6,4],data:hitSer(C,'scope',true)},
+  ]});
+  // effective mag vs marksmanship
+  const mk=[]; for(let m=0;m<=100;m+=5){ mk.push([m, N.effMag(Object.assign({},s,{marks:m}),C,s.mag)]); }
+  const real=[[0,s.mag],[100,s.mag]];
+  N.lineChart(document.getElementById('eff'),{xmax:100,xstep:20,ymax:Math.max(2,Math.ceil(s.mag*C.SCOPE_EFF_MULT)),ystep:1,xlabel:'marksmanship',series:[
+    {name:'real',color:'#8b98ad',dash:[4,4],data:real},
+    {name:'eff',color:'#5cc8ff',data:mk},
+  ]});
+  const e=N.effMag(s,C,s.mag);
+  document.getElementById('effnote').innerHTML =
+    `This ${s.mag}× scope behaves like a <b>${e.toFixed(2)}×</b> for exp ${s.exp} / marks ${s.marks}. `+
+    (s.mag>1? `Skill unlocks ${(100*(e-1)/(s.mag*C.SCOPE_EFF_MULT-1)||0).toFixed(0)}% of the extra power; a veteran would get more.` : `Iron/1× sights are always fully effective.`);
+}
+const root=document.querySelector('.lab');
+N.bind(root,s,render);
+function refreshProp(){ root.querySelectorAll('[data-bind^="PROP."]').forEach(el=>{ const k=el.dataset.bind.split('.')[1];
+    if(el.type==='range'){ el.value=s.PROP[k]; const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; } }); }
+document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); s.PROP=Object.assign({},N.DEFAULTS); N.save(s); refreshProp(); render(); };
+document.getElementById('pl').onclick=()=>{ Object.assign(s.PROP,{SCOPE_EFF_MIN:70,LASER_IRON:25,LASER_SCOPE:20}); N.save(s); refreshProp(); render(); };
+window.addEventListener('resize',render);
+render();
+</script>
+</body></html>

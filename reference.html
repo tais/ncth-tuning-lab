@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NCTH Lab — All parameters</title>
+<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script><script src="assets/params.js"></script>
+<style>
+  .refwrap{max-width:1500px;margin:0 auto;padding:14px 18px 60px}
+  .tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0 14px}
+  .tools input[type=search]{flex:1 1 260px;background:var(--panel2);color:var(--ink);border:1px solid #37425a;border-radius:7px;padding:8px 11px;font-size:13px}
+  .chip{background:var(--panel2);border:1px solid #37425a;color:var(--mut);border-radius:20px;padding:5px 11px;cursor:pointer;font-size:12px}
+  .chip.on{background:var(--acc);color:#06202e;border-color:var(--acc);font-weight:700}
+  table.ref{border-collapse:collapse;width:100%;font-size:12.5px}
+  table.ref th,table.ref td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+  table.ref th{position:sticky;top:96px;background:#232a38;color:var(--mut);cursor:default}
+  table.ref td.k{font-family:ui-monospace,Menlo,monospace;color:#bfe3ff;white-space:nowrap}
+  table.ref td.v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:#fff}
+  tr.rel-HIGH{background:rgba(255,207,92,.07)}
+  .tag{display:inline-block;padding:0 6px;border-radius:20px;font-size:10.5px;font-weight:700}
+  .tag.HIGH{background:rgba(255,207,92,.16);color:var(--warn)} .tag.MED{background:rgba(92,200,255,.14);color:var(--acc)}
+  .tag.LOW{background:rgba(147,161,181,.14);color:var(--mut)}
+  .sys{color:var(--mut);font-size:11px}
+  .count{color:var(--mut);font-size:12px}
+</style>
+</head><body>
+<div id="nav"></div>
+<div class="refwrap">
+  <h1 style="font-size:19px;margin:8px 0 2px">Every NCTH parameter</h1>
+  <p style="color:var(--mut);font-size:13px;margin:2px 0 0">All 113 <code>CTHConstants.ini</code> keys (with the game's own documentation) plus the NCTH-relevant <code>Ja2_Options.INI</code> / <code>DifficultySettings.xml</code> keys. The interactive tabs expose the high-impact subset; this is the complete map. Values shown are the mod's current defaults.</p>
+  <div class="tools">
+    <input id="q" type="search" placeholder="Search key or description… (e.g. aperture, recoil, injury)">
+    <span id="secchips"></span>
+    <span class="chip" id="hionly">HIGH impact only</span>
+  </div>
+  <div class="count" id="count"></div>
+  <table class="ref"><thead><tr><th>Key</th><th>Section</th><th>Value</th><th>Impact</th><th>Raising it →</th><th>What it does</th></tr></thead>
+  <tbody id="rows"></tbody></table>
+</div>
+<script>
+const N=NCTH, P=window.NCTH_PARAMS;
+document.getElementById('nav').innerHTML=N.nav('reference.html');
+const SECTIONS=['All','General','Base CTH','Aiming CTH','Shooting Mechanism','Ja2_Options.INI','DifficultySettings.xml'];
+let sec='All', hi=false, q='';
+document.getElementById('secchips').innerHTML=SECTIONS.map(x=>`<span class="chip${x==='All'?' on':''}" data-sec="${x}">${x}</span>`).join('');
+function esc(t){return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function render(){
+  const rows=P.filter(p=>{
+    if(sec!=='All' && p.section!==sec) return false;
+    if(hi && p.rel!=='HIGH') return false;
+    if(q){ const t=(p.key+' '+p.desc+' '+(p.effect||'')).toLowerCase(); if(!t.includes(q)) return false; }
+    return true;
+  });
+  document.getElementById('count').textContent=`${rows.length} of ${P.length} parameters`;
+  document.getElementById('rows').innerHTML=rows.map(p=>{
+    const tag=p.rel?`<span class="tag ${p.rel}">${p.rel}</span>`:'';
+    return `<tr class="rel-${p.rel||'none'}">
+      <td class="k">${esc(p.key)}<div class="sys">${esc(p.system||'NCTH')}</div></td>
+      <td>${esc(p.section)}</td><td class="v">${esc(p.value)}</td>
+      <td>${tag}</td><td>${esc(p.effect||'—')}</td><td>${esc(p.desc)}</td></tr>`;
+  }).join('');
+}
+document.getElementById('q').addEventListener('input',e=>{ q=e.target.value.trim().toLowerCase(); render(); });
+document.getElementById('secchips').addEventListener('click',e=>{ if(!e.target.dataset.sec) return;
+  sec=e.target.dataset.sec; document.querySelectorAll('#secchips .chip').forEach(c=>c.classList.toggle('on',c.dataset.sec===sec)); render(); });
+document.getElementById('hionly').addEventListener('click',e=>{ hi=!hi; e.target.classList.toggle('on',hi); render(); });
+render();
+</script>
+</body></html>
