@@ -435,6 +435,14 @@ const SCOPES=[
   {name:'7× scope',         sight:'scope', mag:7},
   {name:'10× sniper scope', sight:'scope', mag:10},
 ];
+// target silhouette presets (from JSD cube sizes: ~2u wide, ~6u tall per cube; LOS.cpp:9647)
+// standing 3 tall x3 wide, crouch 2x3, prone 1 tall x3 wide (low frontal profile)
+const TARGETS=[
+  {name:'Standing', tw:3,   th:9},
+  {name:'Crouched', tw:3,   th:6},
+  {name:'Prone',    tw:3.5, th:3},
+  {name:'Head only',tw:1.5, th:2},
+];
 // attachments that influence CTH/recoil (values from Items.xml)
 const ATTACHMENTS=[
   {key:'bipod',    name:'Bipod (rested / prone)', eff:'weapon rest → prone boni · +100% recoil control · +20% handling (bulkier)'},
@@ -449,7 +457,7 @@ function attachCard(keys){ const list=keys?ATTACHMENTS.filter(a=>keys.includes(a
     `<div class="note">Effects are representative, taken from the vanilla items. Laser/scope live on the <a href="optics.html">Optics</a> tab.</div></div>`;
 }
 
-window.NCTH={ DEFAULTS, WEAPONS, SCOPES, ATTACHMENTS, attachCard, load, save, freshState,
+window.NCTH={ DEFAULTS, WEAPONS, SCOPES, ATTACHMENTS, TARGETS, attachCard, load, save, freshState,
   baseAttr, capAttr, condMods, displayedCTH, effMag, scopeEffMag, scopeMinRange, aperture, bulletDevRadius, hitProb, realHit,
   cfAccuracy, cfMax, burst, vbias,
   nav, bind, shooterCard, tuningCard, lineChart, pill, CELL,

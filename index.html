@@ -33,6 +33,7 @@ document.getElementById('c1').innerHTML =
     <div class="note">Handling×stance drives the gun-difficulty penalty. Bullet-deviation adds the weapon's own accuracy scatter (grows with range, invisible on the cursor).</div>
   </div>
   <div class="card"><h2>Target silhouette (units · 1 tile=10)</h2>
+    <div class="row"><label>Target stance</label><div class="seg" id="tgt">${N.TARGETS.map((t,i)=>`<button data-v="${i}">${t.name}</button>`).join('')}</div></div>
     <div class="row"><label>Half-width</label><span class="val"></span><input data-bind="tw" type="range" min="1.5" max="6" step="0.5"></div>
     <div class="row"><label>Half-height</label><span class="val"></span><input data-bind="th" type="range" min="4" max="14" step="0.5"></div>
     <div class="note">A bullet hits if the swayed muzzle point lands on the body. Defaults ≈ a whole standing man.</div>
@@ -54,7 +55,7 @@ document.getElementById('c2').innerHTML =
     <div class="legend"><span><i class="swatch" style="background:var(--good)"></i>CURRENT</span><span><i class="swatch" style="background:var(--prop)"></i>PROPOSED</span></div></div>
   <div class="lab two" style="padding:0;gap:14px;max-width:none">
     <div class="chartbox"><h3>Aperture vs target</h3>
-      <p class="sub">Muzzle-sway disk (blue) vs target (green) at <span id="apr">10</span> tiles, max aim. 250 sample shots.</p>
+      <p class="sub">Muzzle-sway disk (blue) vs target (green) at <span id="apr">10</span> tiles, max aim. 250 sample shots.<span id="apnote" style="color:var(--warn)"></span></p>
       <canvas id="ap" height="240"></canvas>
       <div class="row"><label>Range for this view (tiles)</label><span class="val"></span><input data-bind="aprange" type="range" min="2" max="40" step="1"></div></div>
     <div class="chartbox"><h3>Pipeline &amp; snapshot</h3><table id="pipe"></table><div id="snap" style="margin-top:10px"></div></div>
@@ -95,6 +96,8 @@ function drawAperture(){
   document.getElementById('apr').textContent=s.aprange;
   const r=N.realHit(s,s.CUR,s.aprange,s.maxaim,s.sight,s.mag,s.CUR.IRON_GRAD);
   const cx=w/2, cy=cv.height/2, vb=N.vbias(s,s.CUR);
+  const why=(s.att&&s.att.bipod)?'bipod rest':(s.stance!=='stand'?s.stance:'');
+  const an=document.getElementById('apnote'); if(an) an.textContent = vb<1 ? ` — cone flattened vertically by ${why} (VERTICAL_BIAS)` : '';
   const scale=Math.min(w,cv.height)/2/Math.max(r.apR*1.15, s.th*1.2, 8);
   ctx.fillStyle='rgba(92,200,255,.10)'; ctx.strokeStyle='rgba(92,200,255,.6)';
   ctx.beginPath(); ctx.ellipse(cx,cy,r.apR*scale,r.apR*scale*vb,0,0,7); ctx.fill(); ctx.stroke();
@@ -137,11 +140,15 @@ function render(){
   const perap=(C)=>{ const a=[]; for(let t=0;t<=s.maxaim;t++) a.push([t,100*N.realHit(s,C,s.aprange,t,s.sight,s.mag,C.IRON_GRAD).p]); return a; };
   N.lineChart(document.getElementById('perap'),{xmax:Math.max(2,s.maxaim),xstep:1,xlabel:'aim clicks',series:[
     {name:'cur',color:'#54d98c',data:perap(s.CUR)},{name:'prop',color:'#c58cff',dash:[6,4],data:perap(s.PROP)}]});
+  document.querySelectorAll('#tgt button').forEach(b=>{ const t=N.TARGETS[+b.dataset.v]; b.classList.toggle('on', t.tw===s.tw && t.th===s.th); });
   document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
   N.renderExport(s);
 }
 const root=document.querySelector('.lab');
 N.bind(root, s, render);
+// target-stance presets set width/height and sync the sliders
+document.querySelectorAll('#tgt button').forEach(b=>{ b.onclick=()=>{ const t=N.TARGETS[+b.dataset.v];
+  s.tw=t.tw; s.th=t.th; N.syncControls(root,s); N.save(s); render(); }; });
 if(s.wpn===undefined) s.wpn=2;
 const wsel=document.getElementById('wpn'); wsel.value=s.wpn;
 wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil; s.acc=w.acc; s.effRange=w.effRange;
