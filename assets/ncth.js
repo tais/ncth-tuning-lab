@@ -49,6 +49,9 @@ function load(){
   let s=freshState();
   try{ const j=JSON.parse(localStorage.getItem(KEY)); if(j){ Object.assign(s,j);
         s.CUR=Object.assign({},DEFAULTS,j.CUR||{}); s.PROP=Object.assign({},DEFAULTS,j.PROP||{}); } }catch(e){}
+  // repair any toggle values stored as strings by an earlier build ("0" is truthy!)
+  const numify=o=>{ if(o) for(const k in o) if(typeof o[k]==='string' && o[k]!=='' && !isNaN(o[k])) o[k]=parseFloat(o[k]); };
+  numify(s); numify(s.att); numify(s.CUR); numify(s.PROP);
   return s;
 }
 function save(s){ try{ localStorage.setItem(KEY, JSON.stringify(s)); }catch(e){} }
@@ -245,17 +248,18 @@ function bind(root, s, render){
     const fmt=el.dataset.fmt||'';
     const show=()=>{ if(out) out.textContent=el.value+(fmt); };
     show();
+    const num=('num' in el.dataset);   // valueless data-num => dataset.num==='' (falsy), so test presence
     el.addEventListener('input',()=>{ let v=el.value; if(el.type==='range'||el.type==='number') v=parseFloat(v);
-      if(el.tagName==='SELECT' && !isNaN(v) && el.dataset.num) v=parseFloat(v);
-      setPath(path, (el.tagName==='SELECT'&&!el.dataset.num)? el.value : v);
+      if(el.tagName==='SELECT' && !isNaN(v) && num) v=parseFloat(v);
+      setPath(path, (el.tagName==='SELECT'&&!num)? el.value : v);
       show(); save(s); render(); });
   });
   root.querySelectorAll('[data-seg]').forEach(seg=>{
-    const path=seg.dataset.seg;
+    const path=seg.dataset.seg, num=('num' in seg.dataset);
     seg.querySelectorAll('button').forEach(b=>{
       if(String(getPath(path))===b.dataset.v) b.classList.add('on'); else b.classList.remove('on');
       b.addEventListener('click',()=>{ seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
-        b.classList.add('on'); let v=b.dataset.v; if(!isNaN(v)&&seg.dataset.num) v=parseFloat(v);
+        b.classList.add('on'); let v=b.dataset.v; if(!isNaN(v)&&num) v=parseFloat(v);
         setPath(path, v); save(s); render(); });
     });
   });
