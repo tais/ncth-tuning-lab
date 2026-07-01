@@ -55,7 +55,7 @@ document.getElementById('c2').innerHTML =
     <div class="legend"><span><i class="swatch" style="background:var(--good)"></i>CURRENT</span><span><i class="swatch" style="background:var(--prop)"></i>PROPOSED</span></div></div>
   <div class="lab two" style="padding:0;gap:14px;max-width:none">
     <div class="chartbox"><h3>Aperture vs target</h3>
-      <p class="sub">Muzzle-sway disk (blue) vs target (green) at <span id="apr">10</span> tiles, max aim. 250 sample shots.<span id="apnote" style="color:var(--warn)"></span></p>
+      <p class="sub"><b style="color:#c58cff">Proposed</b> cone (filled + 250 shots) vs <b style="color:#5cc8ff">current</b> (dashed) vs target (green), at <span id="apr">10</span> tiles, max aim.<span id="apnote" style="color:var(--warn)"></span></p>
       <canvas id="ap" height="240"></canvas>
       <div class="row"><label>Range for this view (tiles)</label><span class="val"></span><input data-bind="aprange" type="range" min="2" max="40" step="1"></div></div>
     <div class="chartbox"><h3>Pipeline &amp; snapshot</h3><table id="pipe"></table><div id="snap" style="margin-top:10px"></div></div>
@@ -94,20 +94,27 @@ function drawAperture(){
   const cv=document.getElementById('ap'); const w=cv.parentElement.clientWidth-28; cv.width=w; cv.style.width=w+'px';
   const ctx=cv.getContext('2d'); ctx.clearRect(0,0,w,cv.height);
   document.getElementById('apr').textContent=s.aprange;
-  const r=N.realHit(s,s.CUR,s.aprange,s.maxaim,s.sight,s.mag,s.CUR.IRON_GRAD);
-  const cx=w/2, cy=cv.height/2, vb=N.vbias(s,s.CUR);
+  const rC=N.realHit(s,s.CUR,s.aprange,s.maxaim,s.sight,s.mag,s.CUR.IRON_GRAD);
+  const rP=N.realHit(s,s.PROP,s.aprange,s.maxaim,s.sight,s.mag,s.PROP.IRON_GRAD);
+  const cx=w/2, cy=cv.height/2, vbC=N.vbias(s,s.CUR), vbP=N.vbias(s,s.PROP);
   const why=(s.att&&s.att.bipod)?'bipod rest':(s.stance!=='stand'?s.stance:'');
-  const an=document.getElementById('apnote'); if(an) an.textContent = vb<1 ? ` — cone flattened vertically by ${why} (VERTICAL_BIAS)` : '';
-  const scale=Math.min(w,cv.height)/2/Math.max(r.apR*1.15, s.th*1.2, 8);
-  ctx.fillStyle='rgba(92,200,255,.10)'; ctx.strokeStyle='rgba(92,200,255,.6)';
-  ctx.beginPath(); ctx.ellipse(cx,cy,r.apR*scale,r.apR*scale*vb,0,0,7); ctx.fill(); ctx.stroke();
+  const an=document.getElementById('apnote'); if(an) an.textContent = vbP<1 ? ` — cone flattened vertically by ${why} (VERTICAL_BIAS)` : '';
+  const scale=Math.min(w,cv.height)/2/Math.max(rC.apR*1.15, rP.apR*1.15, s.th*1.2, 8);
+  // target silhouette
   ctx.strokeStyle='rgba(84,217,140,.9)'; ctx.lineWidth=2; ctx.strokeRect(cx-s.tw*scale,cy-s.th*scale,2*s.tw*scale,2*s.th*scale);
+  // CURRENT cone — dashed reference outline
+  ctx.strokeStyle='rgba(92,200,255,.6)'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(cx,cy,rC.apR*scale,rC.apR*scale*vbC,0,0,7); ctx.stroke(); ctx.setLineDash([]);
+  // PROPOSED cone — filled + sample shots (this is what your edits move)
+  ctx.fillStyle='rgba(197,140,255,.10)'; ctx.strokeStyle='rgba(197,140,255,.85)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.ellipse(cx,cy,rP.apR*scale,rP.apR*scale*vbP,0,0,7); ctx.fill(); ctx.stroke();
   for(let i=0;i<250;i++){ const rr=Math.sqrt(Math.random()),a=Math.random()*2*Math.PI;
-    const dx=Math.sin(a)*rr*r.apR, dy=Math.cos(a)*rr*r.apR*vb;
+    const dx=Math.sin(a)*rr*rP.apR, dy=Math.cos(a)*rr*rP.apR*vbP;
     const hit=(dx*dx)/(s.tw*s.tw)+(dy*dy)/(s.th*s.th)<=1;
     ctx.fillStyle=hit?'#54d98c':'#ff6b6b'; ctx.globalAlpha=.75;
     ctx.beginPath(); ctx.arc(cx+dx*scale,cy+dy*scale,1.7,0,7); ctx.fill(); }
   ctx.globalAlpha=1;
+  return {rC,rP};
 }
 function render(){
   document.getElementById('magrow').style.display = s.sight==='scope'?'flex':'none';
@@ -121,15 +128,17 @@ function render(){
     {name:'snap',color:'#5cc8ff',data:cthser(s.CUR,0)},
     {name:'prop',color:'#c58cff',dash:[6,4],data:cthser(s.PROP,s.maxaim)},
   ]});
-  drawAperture();
-  const base=N.displayedCTH(s,s.CUR,0), r=N.realHit(s,s.CUR,s.aprange,s.maxaim,s.sight,s.mag,s.CUR.IRON_GRAD);
+  const AP=drawAperture();
+  const rC=AP.rC, rP=AP.rP, bC=N.displayedCTH(s,s.CUR,0), bP=N.displayedCTH(s,s.PROP,0);
+  const capC=Math.min(N.capAttr(s,s.CUR),s.CUR.MAX_CTH), capP=Math.min(N.capAttr(s,s.PROP),s.PROP.MAX_CTH);
   document.getElementById('pipe').innerHTML=
-    `<tr><td>Base CTH (no aim)</td><td>${base.toFixed(1)} %</td></tr>
-     <tr><td>CTH cap</td><td>${Math.min(N.capAttr(s,s.CUR),s.CUR.MAX_CTH).toFixed(1)} %</td></tr>
-     <tr><td>Displayed CTH @ ${s.aprange}t, max aim</td><td>${r.cth.toFixed(1)} %</td></tr>
-     <tr><td>Muzzle sway (100−CTH)</td><td>${r.sway.toFixed(0)}</td></tr>
-     <tr><td>Aperture radius</td><td>${r.apR.toFixed(1)} u</td></tr>
-     <tr><td><b>Real hit chance</b></td><td><b>${(100*r.p).toFixed(0)} %</b></td></tr>`;
+    `<tr><th>@ ${s.aprange}t, max aim</th><th>current</th><th style="color:var(--prop)">proposed</th></tr>
+     <tr><td>Base CTH (no aim)</td><td>${bC.toFixed(1)}%</td><td>${bP.toFixed(1)}%</td></tr>
+     <tr><td>CTH cap</td><td>${capC.toFixed(1)}%</td><td>${capP.toFixed(1)}%</td></tr>
+     <tr><td>Displayed CTH</td><td>${rC.cth.toFixed(1)}%</td><td>${rP.cth.toFixed(1)}%</td></tr>
+     <tr><td>Muzzle sway (100−CTH)</td><td>${rC.sway.toFixed(0)}</td><td>${rP.sway.toFixed(0)}</td></tr>
+     <tr><td>Aperture radius</td><td>${rC.apR.toFixed(1)}u</td><td>${rP.apR.toFixed(1)}u</td></tr>
+     <tr><td><b>Real hit chance</b></td><td><b>${(100*rC.p).toFixed(0)}%</b></td><td><b style="color:var(--prop)">${(100*rP.p).toFixed(0)}%</b></td></tr>`;
   let h='<table><tr><th>Range</th><th>Disp CTH</th><th>Snap</th><th>Max aim</th></tr>';
   [5,10,15,20,25,30].forEach(d=>{ const a=N.realHit(s,s.CUR,d,s.maxaim,s.sight,s.mag,s.CUR.IRON_GRAD),
     sn=N.realHit(s,s.CUR,d,0,s.sight,s.mag,s.CUR.IRON_GRAD);
