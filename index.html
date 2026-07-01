@@ -14,8 +14,10 @@
   header{padding:18px 22px;background:linear-gradient(90deg,#1b2536,#161a22);border-bottom:1px solid #2b3547}
   header h1{margin:0;font-size:19px;letter-spacing:.3px}
   header p{margin:4px 0 0;color:var(--mut);font-size:13px}
-  .wrap{display:grid;grid-template-columns:380px 1fr;gap:16px;padding:16px;max-width:1520px;margin:0 auto}
-  @media(max-width:1050px){.wrap{grid-template-columns:1fr}}
+  .lab{display:grid;grid-template-columns:320px minmax(0,1fr) 352px;gap:16px;padding:16px;max-width:1800px;margin:0 auto;align-items:start}
+  .wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:1300px){.lab{grid-template-columns:1fr}}
+  @media(max-width:720px){.wrap{grid-template-columns:1fr}}
   .card{background:var(--panel);border:1px solid #2a3346;border-radius:10px;padding:14px 16px;margin-bottom:14px}
   .card h2{margin:0 0 12px;font-size:14px;text-transform:uppercase;letter-spacing:.6px;color:var(--acc)}
   /* label sits ABOVE a full-width slider; value aligns right on the label line */
@@ -64,8 +66,8 @@
   <p style="margin-top:8px"><a href="report.html" style="color:var(--acc);font-weight:600;text-decoration:none">📄 Read the full analysis &amp; tuning report →</a></p>
 </header>
 
-<div class="wrap">
-  <!-- ================= LEFT: CONTROLS ================= -->
+<div class="lab">
+  <!-- ================= COL 1: SHOOTER / GUN / TARGET ================= -->
   <div>
     <div class="card">
       <h2>The Shooter</h2>
@@ -105,47 +107,10 @@
       <div class="note">The bullet "hits" if the randomly-swayed muzzle point lands on the body silhouette. Wider/taller = easier. Defaults ≈ a whole standing man.</div>
     </div>
 
-    <div class="card">
-      <h2>CTHConstants.ini <span class="propflag">(edit = PROPOSED)</span></h2>
-      <div class="grp">
-        <div class="row"><label>DEGREES_MAXIMUM_APERTURE</label><input id="DEG_APERTURE" type="range" min="5" max="22.5" step="0.5" value="15"><span class="val" id="DEG_APERTURE_v">15</span></div>
-        <div class="row"><label>NORMAL_SHOOTING_DISTANCE</label><input id="NORMAL_DIST" type="range" min="30" max="150" step="5" value="70"><span class="val" id="NORMAL_DIST_v">70</span></div>
-        <div class="row"><label>IRON_SIGHT_PERFORMANCE_BONUS</label><input id="IRON_PERF" type="range" min="-20" max="50" step="5" value="20"><span class="val" id="IRON_PERF_v">20</span></div>
-        <div class="row"><label>IRON…MAX_APERTURE_USE_GRADIENT</label>
-          <div class="seg" id="IRON_GRADIENT"><button data-v="1" class="on">On</button><button data-v="0">Off</button></div></div>
-        <div class="row"><label>IRON…MAX_APERTURE_MODIFIER</label><input id="IRON_MOD" type="range" min="2" max="5" step="0.25" value="3"><span class="val" id="IRON_MOD_v">3</span></div>
-        <div class="row"><label>VERTICAL_BIAS</label><input id="VERT_BIAS" type="range" min="0.2" max="1" step="0.05" value="0.5"><span class="val" id="VERT_BIAS_v">0.5</span></div>
-      </div>
-      <div class="grp">
-        <div class="row"><label>BASE_EXP</label><input id="BASE_EXP" type="range" min="0" max="6" step="0.5" value="3"><span class="val" id="BASE_EXP_v">3</span></div>
-        <div class="row"><label>BASE_MARKS</label><input id="BASE_MARKS" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="BASE_MARKS_v">1</span></div>
-        <div class="row"><label>BASE_WIS</label><input id="BASE_WIS" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="BASE_WIS_v">1</span></div>
-        <div class="row"><label>BASE_DEX</label><input id="BASE_DEX" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="BASE_DEX_v">1</span></div>
-        <div class="row"><label>BASE_DRAW_COST</label><input id="BASE_DRAW" type="range" min="0" max="4" step="0.25" value="2"><span class="val" id="BASE_DRAW_v">2</span></div>
-      </div>
-      <div class="grp">
-        <div class="row"><label>AIM_EXP</label><input id="AIM_EXP" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="AIM_EXP_v">1</span></div>
-        <div class="row"><label>AIM_MARKS</label><input id="AIM_MARKS" type="range" min="0" max="6" step="0.5" value="3"><span class="val" id="AIM_MARKS_v">3</span></div>
-        <div class="row"><label>AIM_WIS</label><input id="AIM_WIS" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="AIM_WIS_v">1</span></div>
-        <div class="row"><label>AIM_DEX</label><input id="AIM_DEX" type="range" min="0" max="6" step="0.5" value="2"><span class="val" id="AIM_DEX_v">2</span></div>
-        <div class="row"><label>AIM_DRAW_COST</label><input id="AIM_DRAW" type="range" min="0" max="4" step="0.25" value="1"><span class="val" id="AIM_DRAW_v">1</span></div>
-      </div>
-      <div class="grp">
-        <div class="row"><label>MAXIMUM_POSSIBLE_CTH</label><input id="MAX_CTH" type="range" min="80" max="100" step="1" value="99"><span class="val" id="MAX_CTH_v">99</span></div>
-        <div class="row"><label>MINIMUM_POSSIBLE_CTH</label><input id="MIN_CTH" type="range" min="0" max="25" step="1" value="0"><span class="val" id="MIN_CTH_v">0</span></div>
-      </div>
-    </div>
 
-    <div class="card presets">
-      <h2>Presets</h2>
-      <button onclick="applyPreset('vanilla')">Reset both to Vanilla</button>
-      <button onclick="applyPreset('lowbuff')">Load "Low-level buff" → PROPOSED</button>
-      <button onclick="applyPreset('tighten')">Load "Tighter cone" → PROPOSED</button>
-      <div class="note">Presets change only the <b class="diff">PROPOSED</b> (purple) values so you can compare against CURRENT. "Reset" copies vanilla into both.</div>
-    </div>
   </div>
 
-  <!-- ================= RIGHT: OUTPUT ================= -->
+  <!-- ================= COL 2: CHARTS ================= -->
   <div>
     <div class="chartbox">
       <h3>Real chance to actually HIT vs range</h3>
@@ -188,6 +153,47 @@
       <h3>Snapshot table — CURRENT values</h3>
       <table id="snap"></table>
       <div class="note" id="verdict"></div>
+    </div>
+  </div>
+  <!-- ================= COL 3: TUNING ================= -->
+  <div>
+    <div class="card">
+      <h2>CTHConstants.ini <span class="propflag">(edit = PROPOSED)</span></h2>
+      <div class="grp">
+        <div class="row"><label>DEGREES_MAXIMUM_APERTURE</label><input id="DEG_APERTURE" type="range" min="5" max="22.5" step="0.5" value="15"><span class="val" id="DEG_APERTURE_v">15</span></div>
+        <div class="row"><label>NORMAL_SHOOTING_DISTANCE</label><input id="NORMAL_DIST" type="range" min="30" max="150" step="5" value="70"><span class="val" id="NORMAL_DIST_v">70</span></div>
+        <div class="row"><label>IRON_SIGHT_PERFORMANCE_BONUS</label><input id="IRON_PERF" type="range" min="-20" max="50" step="5" value="20"><span class="val" id="IRON_PERF_v">20</span></div>
+        <div class="row"><label>IRON…MAX_APERTURE_USE_GRADIENT</label>
+          <div class="seg" id="IRON_GRADIENT"><button data-v="1" class="on">On</button><button data-v="0">Off</button></div></div>
+        <div class="row"><label>IRON…MAX_APERTURE_MODIFIER</label><input id="IRON_MOD" type="range" min="2" max="5" step="0.25" value="3"><span class="val" id="IRON_MOD_v">3</span></div>
+        <div class="row"><label>VERTICAL_BIAS</label><input id="VERT_BIAS" type="range" min="0.2" max="1" step="0.05" value="0.5"><span class="val" id="VERT_BIAS_v">0.5</span></div>
+      </div>
+      <div class="grp">
+        <div class="row"><label>BASE_EXP</label><input id="BASE_EXP" type="range" min="0" max="6" step="0.5" value="3"><span class="val" id="BASE_EXP_v">3</span></div>
+        <div class="row"><label>BASE_MARKS</label><input id="BASE_MARKS" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="BASE_MARKS_v">1</span></div>
+        <div class="row"><label>BASE_WIS</label><input id="BASE_WIS" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="BASE_WIS_v">1</span></div>
+        <div class="row"><label>BASE_DEX</label><input id="BASE_DEX" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="BASE_DEX_v">1</span></div>
+        <div class="row"><label>BASE_DRAW_COST</label><input id="BASE_DRAW" type="range" min="0" max="4" step="0.25" value="2"><span class="val" id="BASE_DRAW_v">2</span></div>
+      </div>
+      <div class="grp">
+        <div class="row"><label>AIM_EXP</label><input id="AIM_EXP" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="AIM_EXP_v">1</span></div>
+        <div class="row"><label>AIM_MARKS</label><input id="AIM_MARKS" type="range" min="0" max="6" step="0.5" value="3"><span class="val" id="AIM_MARKS_v">3</span></div>
+        <div class="row"><label>AIM_WIS</label><input id="AIM_WIS" type="range" min="0" max="6" step="0.5" value="1"><span class="val" id="AIM_WIS_v">1</span></div>
+        <div class="row"><label>AIM_DEX</label><input id="AIM_DEX" type="range" min="0" max="6" step="0.5" value="2"><span class="val" id="AIM_DEX_v">2</span></div>
+        <div class="row"><label>AIM_DRAW_COST</label><input id="AIM_DRAW" type="range" min="0" max="4" step="0.25" value="1"><span class="val" id="AIM_DRAW_v">1</span></div>
+      </div>
+      <div class="grp">
+        <div class="row"><label>MAXIMUM_POSSIBLE_CTH</label><input id="MAX_CTH" type="range" min="80" max="100" step="1" value="99"><span class="val" id="MAX_CTH_v">99</span></div>
+        <div class="row"><label>MINIMUM_POSSIBLE_CTH</label><input id="MIN_CTH" type="range" min="0" max="25" step="1" value="0"><span class="val" id="MIN_CTH_v">0</span></div>
+      </div>
+    </div>
+
+    <div class="card presets">
+      <h2>Presets</h2>
+      <button onclick="applyPreset('vanilla')">Reset both to Vanilla</button>
+      <button onclick="applyPreset('lowbuff')">Load "Low-level buff" → PROPOSED</button>
+      <button onclick="applyPreset('tighten')">Load "Tighter cone" → PROPOSED</button>
+      <div class="note">Presets change only the <b class="diff">PROPOSED</b> (purple) values so you can compare against CURRENT. "Reset" copies vanilla into both.</div>
     </div>
   </div>
 </div>
