@@ -29,7 +29,7 @@ document.getElementById('c1').innerHTML = N.shooterCard({extraStats:true}) +
     <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
     <div class="row"><label>Weapon handling</label><span class="val"></span><input data-bind="handling" type="range" min="4" max="22" step="1"></div>
     <div class="note">Prone/crouch add counter-force (set stance above). Strength &amp; agility are the recoil-taming stats.</div>
-  </div>`;
+  </div>` + N.attachCard(['bipod','foregrip']);
 
 document.getElementById('c2').innerHTML =
   `<div class="chartbox"><h3>Hit chance per bullet in the volley</h3>

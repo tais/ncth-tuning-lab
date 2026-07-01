@@ -36,6 +36,8 @@ function freshState(){
     tw:3.5, th:10,
     // gun deviation / visibility
     acc:63, effRange:330, bulletdev:0, vis:100,
+    // attachments
+    att:{bipod:0, foregrip:0, match:0, extender:0},
     // conditions
     health:100, breath:100, morale:0, shock:0, drunk:0, gassed:0,
     // autofire
@@ -61,8 +63,12 @@ function capAttr(s,C){
   return (C.AIM_EXP*s.exp*10 + C.AIM_MARKS*s.marks + C.AIM_DEX*s.dex + C.AIM_WIS*s.wis)
         /(C.AIM_EXP+C.AIM_MARKS+C.AIM_DEX+C.AIM_WIS);
 }
-const stanceBase=(s,C)=> s.stance==='stand'?C.BASE_STAND : s.stance==='crouch'?C.BASE_CROUCH : C.BASE_PRONE;
-const stanceAim =(s,C)=> s.stance==='stand'?C.AIM_STAND  : s.stance==='crouch'?C.AIM_CROUCH  : C.AIM_PRONE;
+// attachment effects (values from Items.xml: bipod +100% CF-max/+35% CF-acc/+20% handling, foregrip +70/+30/-10%)
+const A=s=>s.att||{};
+const effStance=(s)=> A(s).bipod?'prone':s.stance;   // bipod = weapon resting => prone boni
+const effHandling=(s)=> s.handling*(1 + ((A(s).bipod?20:0)+(A(s).foregrip?-10:0))/100);
+const stanceBase=(s,C)=> {const st=effStance(s); return st==='stand'?C.BASE_STAND : st==='crouch'?C.BASE_CROUCH : C.BASE_PRONE;};
+const stanceAim =(s,C)=> {const st=effStance(s); return st==='stand'?C.AIM_STAND  : st==='crouch'?C.AIM_CROUCH  : C.AIM_PRONE;};
 function playerDiff(s){ const v={1:20,2:10,3:0,4:0}[s.diff]||0; return Math.max(0,30-s.prog)*v/30; }
 
 // condition -> additive % modifiers on base and aim (BaseEffectBonus / AimEffectBonus)
@@ -92,12 +98,13 @@ function displayedCTH(s,C,t,opts){
   opts=opts||{};
   let base=baseAttr(s,C);
   if(base<=C.MIN_CTH) return C.MIN_CTH;
-  const cm=condMods(s,C);
-  const baseMod=-(s.handling*stanceBase(s,C)*C.BASE_DRAW) + playerDiff(s) + cm.base;
+  const cm=condMods(s,C), hnd=effHandling(s);
+  const baseMod=-(hnd*stanceBase(s,C)*C.BASE_DRAW) + playerDiff(s) + cm.base;
   base=Math.max(0,Math.min(100, base*(100+baseMod)/100));
+  if(A(s).match) base+=5;   // match parts / accurizing: small flat CTH bonus (ToHitBonus)
   if(t<=0) return Math.max(C.MIN_CTH, Math.min(base,C.MAX_CTH));
   let cap=Math.min(Math.max(capAttr(s,C), Math.max(0,base)), C.MAX_CTH);
-  let aimMod=-(C.AIM_DRAW*s.handling*stanceAim(s,C)) + playerDiff(s) + cm.aim;
+  let aimMod=-(C.AIM_DRAW*hnd*stanceAim(s,C)) + playerDiff(s) + cm.aim;
   // scope "too close" aim penalty (Weapons.cpp:6552) — a scope below its min range hurts aiming
   const sight=opts.sight||s.sight, mag=(opts.mag!==undefined?opts.mag:s.mag), dT=opts.dTiles;
   if(sight==='scope' && mag>1 && dT){
@@ -145,13 +152,15 @@ function scopeEffMag(s,C,mag,dTiles){
 }
 // range (tiles) at which a scope first reaches full magnification
 function scopeMinRange(C,mag){ return mag*C.NORMAL_DIST*C.SCOPE_RANGE_MULT/CELL; }
-const vbias=(s,C)=> s.stance==='stand'?1 : s.stance==='prone'?C.VERT_BIAS : 1+(C.VERT_BIAS-1)*0.66;
+const vbias=(s,C)=> {const st=effStance(s); return st==='stand'?1 : st==='prone'?C.VERT_BIAS : 1+(C.VERT_BIAS-1)*0.66;};
 
 // gun bullet-deviation radius (2nd scatter layer, absent from displayed CTH). CalcBulletDeviation, LOS.cpp:9541
 function bulletDevRadius(s,C,dUnits){
   if(!s.bulletdev) return 0;
-  let dev=C.MAX_BULLET_DEV*(100-s.acc)/100;
-  if(C.RANGE_EFFECTS_DEV) dev*=Math.max(1, dUnits/(s.effRange||1));
+  const acc=Math.min(100, s.acc + (A(s).match?20:0));      // match/accurizing raises accuracy
+  const effR=(s.effRange||1)*(A(s).extender?1.25:1);       // barrel extender adds effective range
+  let dev=C.MAX_BULLET_DEV*(100-acc)/100;
+  if(C.RANGE_EFFECTS_DEV) dev*=Math.max(1, dUnits/effR);
   dev/=2;                       // CellXY/ScreenXY compensation
   dev*=dUnits/C.NORMAL_DIST;    // iDistanceRatio
   return Math.max(0,dev);
@@ -181,15 +190,18 @@ function realHit(s,C,dTiles,t,sight,mag,grad){
 
 // ---- recoil (CalcCounterForceAccuracy / CalcCounterForceMax) ----
 function cfAccuracy(s,C){ // 0..100 = how accurately recoil is countered
-  const v=(C.RCA_DEX*s.dex + C.RCA_WIS*s.wis + C.RCA_AGI*s.agi + C.RCA_EXP*s.exp*10)
+  let v=(C.RCA_DEX*s.dex + C.RCA_WIS*s.wis + C.RCA_AGI*s.agi + C.RCA_EXP*s.exp*10)
          /(C.RCA_DEX+C.RCA_WIS+C.RCA_AGI+C.RCA_EXP);
+  v*=1 + ((A(s).bipod?35:0)+(A(s).foregrip?30:0))/100;   // PercentCounterForceAccuracy
   return Math.max(0,Math.min(100,v));
 }
 function cfMax(s,C){
   let v=(C.RC_MAX_STR*s.str + C.RC_MAX_AGI*s.agi + C.RC_MAX_EXP*s.exp*10)/(C.RC_MAX_STR+C.RC_MAX_AGI+C.RC_MAX_EXP);
   v=v*C.RC_MAX_FORCE/100;
-  if(s.stance==='crouch') v+=C.RC_MAX_CROUCH*C.RC_MAX_FORCE/100;
-  if(s.stance==='prone')  v+=C.RC_MAX_PRONE*C.RC_MAX_FORCE/100;
+  const st=effStance(s);
+  if(st==='crouch') v+=C.RC_MAX_CROUCH*C.RC_MAX_FORCE/100;
+  if(st==='prone')  v+=C.RC_MAX_PRONE*C.RC_MAX_FORCE/100;
+  v*=1 + ((A(s).bipod?100:0)+(A(s).foregrip?70:0))/100;   // PercentMaxCounterForce
   return v;
 }
 // conceptual per-bullet muzzle-walk for a burst/auto volley (teaching model)
@@ -369,11 +381,13 @@ function banner(s){
   if(s.shock>0) cond.push(`shock ${s.shock}`); if(s.drunk>0) cond.push(['tipsy','drunk','wasted','hungover'][s.drunk-1]);
   if(s.gassed) cond.push('gassed'); if(s.morale) cond.push(`morale ${s.morale>0?'+':''}${s.morale}`);
   if(s.vis<100) cond.push(`visibility ${s.vis}%`); if(s.bulletdev) cond.push('gun-deviation');
+  const gear=ATTACHMENTS.filter(a=>A(s)[a.key]).map(a=>a.key);
   const nprop=iniDiff(s).length;
-  if(!cond.length && !nprop) return '';
+  if(!cond.length && !gear.length && !nprop) return '';
   const link=(id,txt)=>`<a href="#" id="${id}" style="color:var(--acc);margin-left:5px">${txt}</a>`;
   const parts=[];
   if(cond.length) parts.push(`${cond.join(' · ')} ${link('banreset','reset conditions')}`);
+  if(gear.length) parts.push(`gear: ${gear.join(', ')} ${link('banresetgear','remove')}`);
   if(nprop) parts.push(`${nprop} proposed edit${nprop>1?'s':''} ${link('banresetedits','reset edits')}`);
   return `<div style="max-width:1780px;margin:0 auto;padding:6px 18px"><span style="background:rgba(255,207,92,.12);border:1px solid #4a4327;color:var(--warn);border-radius:8px;padding:5px 10px;font-size:12px">⚙ Active: ${parts.join(' &nbsp;•&nbsp; ')}</span></div>`;
 }
@@ -382,6 +396,7 @@ function wireBannerReset(s,render){
   const doReset=fn=>e=>{ e.preventDefault(); fn(); syncControls(root,s); save(s); if(render) render(); };
   const a=document.getElementById('banreset'); if(a) a.onclick=doReset(()=>{ const f=freshState();
     ['health','breath','morale','shock','drunk','gassed','vis','bulletdev'].forEach(k=>s[k]=f[k]); });
+  const g=document.getElementById('banresetgear'); if(g) g.onclick=doReset(()=>{ s.att={bipod:0,foregrip:0,match:0,extender:0}; });
   const b=document.getElementById('banresetedits'); if(b) b.onclick=doReset(()=>{ s.PROP=Object.assign({},DEFAULTS); });
 }
 // heatmap: rows x cols grid colored by value 0..100
@@ -420,8 +435,21 @@ const SCOPES=[
   {name:'7× scope',         sight:'scope', mag:7},
   {name:'10× sniper scope', sight:'scope', mag:10},
 ];
+// attachments that influence CTH/recoil (values from Items.xml)
+const ATTACHMENTS=[
+  {key:'bipod',    name:'Bipod (rested / prone)', eff:'weapon rest → prone boni · +100% recoil control · +20% handling (bulkier)'},
+  {key:'foregrip', name:'Foregrip / angled grip', eff:'+70% recoil control · +30% counter-accuracy · −10% handling'},
+  {key:'match',    name:'Match parts / accurizing', eff:'+gun accuracy (less scatter) · small flat CTH bonus'},
+  {key:'extender', name:'Barrel extender',        eff:'+25% effective range → less long-range bullet deviation'},
+];
+function attachCard(keys){ const list=keys?ATTACHMENTS.filter(a=>keys.includes(a.key)):ATTACHMENTS;
+  return `<div class="card"><h2>Attachments</h2>`+list.map(a=>
+    `<div class="row"><label>${a.name}<br><span style="color:#6f7d92;font-size:11px">${a.eff}</span></label>
+      <div class="seg" data-seg="att.${a.key}" data-num><button data-v="0">Off</button><button data-v="1">On</button></div></div>`).join('')+
+    `<div class="note">Effects are representative, taken from the vanilla items. Laser/scope live on the <a href="optics.html">Optics</a> tab.</div></div>`;
+}
 
-window.NCTH={ DEFAULTS, WEAPONS, SCOPES, load, save, freshState,
+window.NCTH={ DEFAULTS, WEAPONS, SCOPES, ATTACHMENTS, attachCard, load, save, freshState,
   baseAttr, capAttr, condMods, displayedCTH, effMag, scopeEffMag, scopeMinRange, aperture, bulletDevRadius, hitProb, realHit,
   cfAccuracy, cfMax, burst, vbias,
   nav, bind, shooterCard, tuningCard, lineChart, pill, CELL,
