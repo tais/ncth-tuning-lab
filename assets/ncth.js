@@ -368,15 +368,15 @@ function lineChart(cv, o){
       const c=cv._chart; if(!c) return;
       const r=cv.getBoundingClientRect(); if(!r||!r.width) return;
       const mx=(e.clientX-r.left)*(cv.width/r.width);
-      const ref=(c.o.series||[]).find(se=>!se.noTip && se.data.length); if(!ref) return;
+      const xs=unionXs(c.o.series); if(!xs.length) return;
       const xv=(mx-c.L)/c.pw*c.xmax;
-      let xn=ref.data[0][0], best=1e9;
-      ref.data.forEach(p=>{ const d=Math.abs(p[0]-xv); if(d<best){best=d;xn=p[0];} });
+      let xn=xs[0]; xs.forEach(x=>{ if(Math.abs(x-xv)<Math.abs(xn-xv)) xn=x; });
+      const tol=xTol(xs);
       chartGuide(cv,xn,false);
       const dec=c.o.dec!==undefined?c.o.dec:0, unit=c.o.unit!==undefined?c.o.unit:'%';
       let html=c.o.xdist?`<b>${fmtDist(xn)}</b>`:`<b>${c.o.xlabel||'x'}: ${xn}</b>`;
       (c.o.series||[]).forEach(se=>{ if(se.noTip||!se.data.length) return;
-        const pt=nearestPt(se,xn);
+        const pt=nearestPt(se,xn); if(Math.abs(pt[0]-xn)>tol) return;   // series has no point here (e.g. fewer aim levels)
         html+=`<br><span style="color:${se.color}">●</span> ${se.name}: <b>${pt[1].toFixed(dec)}${unit}</b>`; });
       tip(e.clientX,e.clientY,html);
       // linked charts: same range guide + inline value labels on every sibling
@@ -388,6 +388,12 @@ function lineChart(cv, o){
 }
 const _chartGroups={};
 function nearestPt(se,xn){ let pt=se.data[0],bd=1e9; se.data.forEach(p=>{const d=Math.abs(p[0]-xn); if(d<bd){bd=d;pt=p;}}); return pt; }
+function unionXs(series){ const set=new Set();
+  (series||[]).forEach(se=>{ if(!se.noTip&&se.data) se.data.forEach(p=>set.add(p[0])); });
+  return [...set].sort((a,b)=>a-b); }
+function xTol(xs){ let g=Infinity;
+  for(let i=1;i<xs.length;i++){ const d=xs[i]-xs[i-1]; if(d>0&&d<g) g=d; }
+  return isFinite(g)? g/2+1e-9 : 0.5; }
 // redraw a chart with a vertical guide at data-x=xn; labels=true adds inline value labels (for linked siblings)
 function chartGuide(cv,xn,labels){
   const c=cv._chart; if(!c) return;
@@ -398,8 +404,10 @@ function chartGuide(cv,xn,labels){
   if(labels){ ctx.font='10px sans-serif'; ctx.fillStyle='#93a1b5';
     const lx=Math.min(c.X(xn)+5, c.L+c.pw-46);
     ctx.fillText(c.o.xdist?fmtDist(xn):String(xn), lx, c.T+10); }
+  const tol=xTol(unionXs(c.o.series));
   (c.o.series||[]).forEach(se=>{ if(se.noTip||!se.data.length) return;
-    const pt=nearestPt(se,xn), px=c.X(pt[0]), py=c.Y(pt[1]);
+    const pt=nearestPt(se,xn); if(Math.abs(pt[0]-xn)>tol) return;
+    const px=c.X(pt[0]), py=c.Y(pt[1]);
     ctx.fillStyle=se.color; ctx.beginPath(); ctx.arc(px,py,3.2,0,7); ctx.fill();
     if(labels){ const t=pt[1].toFixed(dec)+unit, tx=Math.min(px+6, c.L+c.pw-26);
       ctx.font='10px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(10,14,20,.85)';
