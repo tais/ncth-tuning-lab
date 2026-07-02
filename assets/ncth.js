@@ -31,7 +31,7 @@ const KEY='ncth-lab-v1';
 function freshState(){
   return {
     exp:4, marks:70, dex:70, wis:70, agi:70, str:70,
-    stance:'stand', diff:3, prog:0, xmax:40,
+    stance:'stand', diff:3, prog:0, xmax:40, aprange:10, wpnaim:'max',
     handling:11, maxaim:6, sight:'iron', mag:4,
     tw:3.5, th:10,
     // gun deviation / visibility / laser
@@ -309,6 +309,26 @@ function bind(root, s, render){
         b.classList.add('on'); let v=b.dataset.v; if(!isNaN(v)&&num) v=parseFloat(v);
         setPath(path, v); save(s); render(); });
     });
+  });
+  // per-card ↺ reset: restores only this card's bound fields to defaults
+  // (skipped for CTHConstants tuning cards — they have "Reset to Vanilla" presets)
+  root.querySelectorAll('.card').forEach(cardEl=>{
+    if(!cardEl.querySelector||cardEl.querySelector('.cardreset')) return;
+    const els=cardEl.querySelectorAll('[data-bind],[data-seg]');
+    if(!els.length) return;
+    const paths=[...els].map(el=>el.dataset.bind||el.dataset.seg);
+    if(paths.every(p=>p.indexOf('PROP.')===0||p.indexOf('CUR.')===0)) return;
+    const h=cardEl.querySelector('h2'); if(!h||!h.appendChild) return;
+    const btn=document.createElement('button');
+    btn.className='cardreset'; btn.type='button'; btn.textContent='↺ reset';
+    btn.title='Reset the settings in this box to their defaults';
+    h.appendChild(btn);
+    btn.onclick=()=>{ const f=freshState();
+      paths.forEach(p=>{
+        if(p.indexOf('.')>0){ const parts=p.split('.'); if(s[parts[0]]&&f[parts[0]]&&f[parts[0]][parts[1]]!==undefined) s[parts[0]][parts[1]]=f[parts[0]][parts[1]]; }
+        else if(f[p]!==undefined) s[p]=f[p];
+      });
+      save(s); syncControls(root,s); render(); };
   });
 }
 // shared shooter card html
