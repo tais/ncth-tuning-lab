@@ -21,8 +21,9 @@ code{background:#0e1219;border:1px solid #2a3346;border-radius:4px;padding:1px 5
 .intro p{color:var(--mut);font-size:13px;margin:4px 0}
 
 /* ---- layout ---- */
-.lab{display:grid;grid-template-columns:300px minmax(0,1fr) 340px;gap:16px;padding:16px 18px;max-width:1780px;margin:0 auto;align-items:start}
-.lab.two{grid-template-columns:320px minmax(0,1fr)}
+.lab{display:grid;grid-template-columns:375px minmax(0,1fr) 395px;gap:16px;padding:16px 18px;max-width:1820px;margin:0 auto;align-items:start}
+.lab.two{grid-template-columns:1fr 1fr}
+@media(max-width:1500px){.lab{grid-template-columns:330px minmax(0,1fr) 360px}}
 @media(max-width:1240px){.lab,.lab.two{grid-template-columns:1fr}}
 .col{display:flex;flex-direction:column;gap:14px}
 
