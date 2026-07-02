@@ -16,7 +16,10 @@
   .wlegend .inner{max-width:1780px;margin:0 auto;padding:9px 18px;display:flex;gap:22px;align-items:center;
     flex-wrap:wrap;font-size:13px;color:var(--mut)}
   .wlegend .inner>b{color:var(--ink);font-size:12.5px}
-  .wlegend span{display:inline-flex;align-items:center;gap:7px;color:#cdd6e4}
+  .wlegend span{display:inline-flex;align-items:center;gap:7px;color:#cdd6e4;cursor:pointer;user-select:none;padding:2px 4px;border-radius:6px}
+  .wlegend span:hover{background:#232a38}
+  .wlegend span.off{opacity:.32;text-decoration:line-through}
+  .wlegend .hint{color:#6f7d92;font-size:11.5px;cursor:default;margin-left:auto}
   .wlegend .swatch{width:18px;height:4px;border-radius:2px;display:inline-block}
 </style>
 </head><body>
@@ -33,12 +36,20 @@
 <script>
 const N=NCTH, s=N.load();
 if(s.wpnaim===undefined) s.wpnaim='max';
+if(!Array.isArray(s.optvis)||s.optvis.length!==5) s.optvis=[1,1,1,1,1];
 if(s.bulletdev===undefined||s._wpnInit===undefined){ s.bulletdev=1; s._wpnInit=1; }   // default ON for this page's first visit
 document.getElementById('nav').innerHTML=N.nav('weapons.html');
 const SC=[{n:'Iron',sight:'iron',mag:1,c:'#8b98ad'},{n:'2×',sight:'scope',mag:2,c:'#54d98c'},
   {n:'4× ACOG',sight:'scope',mag:4,c:'#5cc8ff'},{n:'7×',sight:'scope',mag:7,c:'#ffcf5c'},
   {n:'10× sniper',sight:'scope',mag:10,c:'#c58cff'}];
-document.getElementById('leg').innerHTML='<b>Optics:</b>'+SC.map(o=>`<span><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('');
+function renderLeg(){
+  document.getElementById('leg').innerHTML='<b>Optics:</b>'+SC.map((o,i)=>
+    `<span class="${s.optvis[i]?'':'off'}" data-oi="${i}" title="Click to show/hide this optic"><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('')+
+    '<span class="hint">click an optic to show/hide its line</span>';
+  document.querySelectorAll('#leg [data-oi]').forEach(el=>{ el.onclick=()=>{ const i=+el.dataset.oi;
+    s.optvis[i]=s.optvis[i]?0:1; N.save(s); renderLeg(); render(); }; });
+}
+renderLeg();
 // pin the legend just below the sticky top nav
 function pinLegend(){ const nav=document.querySelector('.topnav'), lg=document.querySelector('.wlegend');
   if(nav&&lg) lg.style.top=(nav.offsetHeight||0)+'px'; }
@@ -74,8 +85,9 @@ function render(){
     const sw=shooterFor(w);
     document.getElementById('st'+i).innerHTML=
       `handling <b>${w.handling}</b> · aim clicks <b>${w.maxaim}</b> · recoil <b>${w.gunRecoil}</b>/bullet · accuracy <b>${w.acc}</b> · eff. range <b>${N.fmtDist(w.effRange/N.CELL)}</b>`;
-    N.lineChart(document.getElementById('wc'+i),{xmax:s.xmax,xstep:xst,xdist:true,
-      series:SC.map(o=>({name:o.n,color:o.c,data:hitLine(sw,o,C,rng)}))});
+    const act=SC.filter((o,oi)=>s.optvis[oi]);
+    N.lineChart(document.getElementById('wc'+i),{xmax:s.xmax,xstep:xst,xdist:true,group:'wpn',
+      series:act.map(o=>({name:o.n,color:o.c,data:hitLine(sw,o,C,rng)}))});
   });
   document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
 }

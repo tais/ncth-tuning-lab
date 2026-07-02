@@ -348,6 +348,7 @@ function lineChart(cv, o){
   };
   draw();
   cv._chart={o,draw,X,Y,L,T,pw,ph,xmax};
+  if(o.group){ (_chartGroups[o.group]=_chartGroups[o.group]||new Set()).add(cv); cv._group=o.group; }
   if(!cv._tipWired){ cv._tipWired=true;
     cv.addEventListener('mousemove',e=>{
       const c=cv._chart; if(!c) return;
@@ -357,19 +358,38 @@ function lineChart(cv, o){
       const xv=(mx-c.L)/c.pw*c.xmax;
       let xn=ref.data[0][0], best=1e9;
       ref.data.forEach(p=>{ const d=Math.abs(p[0]-xv); if(d<best){best=d;xn=p[0];} });
-      c.draw();
-      const ctx=cv.getContext('2d');
-      ctx.strokeStyle='rgba(255,255,255,.20)'; ctx.beginPath(); ctx.moveTo(c.X(xn),c.T); ctx.lineTo(c.X(xn),c.T+c.ph); ctx.stroke();
+      chartGuide(cv,xn,false);
       const dec=c.o.dec!==undefined?c.o.dec:0, unit=c.o.unit!==undefined?c.o.unit:'%';
       let html=c.o.xdist?`<b>${fmtDist(xn)}</b>`:`<b>${c.o.xlabel||'x'}: ${xn}</b>`;
       (c.o.series||[]).forEach(se=>{ if(se.noTip||!se.data.length) return;
-        let pt=se.data[0], bd=1e9; se.data.forEach(p=>{const d=Math.abs(p[0]-xn); if(d<bd){bd=d;pt=p;}});
-        ctx.fillStyle=se.color; ctx.beginPath(); ctx.arc(c.X(pt[0]),c.Y(pt[1]),3.2,0,7); ctx.fill();
+        const pt=nearestPt(se,xn);
         html+=`<br><span style="color:${se.color}">●</span> ${se.name}: <b>${pt[1].toFixed(dec)}${unit}</b>`; });
       tip(e.clientX,e.clientY,html);
+      // linked charts: same range guide + inline value labels on every sibling
+      if(cv._group&&_chartGroups[cv._group]) _chartGroups[cv._group].forEach(sib=>{ if(sib!==cv&&sib._chart&&sib.isConnected!==false) chartGuide(sib,xn,true); });
     });
-    cv.addEventListener('mouseleave',()=>{ hideTip(); if(cv._chart) cv._chart.draw(); });
+    cv.addEventListener('mouseleave',()=>{ hideTip(); if(cv._chart) cv._chart.draw();
+      if(cv._group&&_chartGroups[cv._group]) _chartGroups[cv._group].forEach(sib=>{ if(sib!==cv&&sib._chart) sib._chart.draw(); }); });
   }
+}
+const _chartGroups={};
+function nearestPt(se,xn){ let pt=se.data[0],bd=1e9; se.data.forEach(p=>{const d=Math.abs(p[0]-xn); if(d<bd){bd=d;pt=p;}}); return pt; }
+// redraw a chart with a vertical guide at data-x=xn; labels=true adds inline value labels (for linked siblings)
+function chartGuide(cv,xn,labels){
+  const c=cv._chart; if(!c) return;
+  c.draw();
+  const ctx=cv.getContext('2d');
+  ctx.strokeStyle='rgba(255,255,255,.20)'; ctx.beginPath(); ctx.moveTo(c.X(xn),c.T); ctx.lineTo(c.X(xn),c.T+c.ph); ctx.stroke();
+  const dec=c.o.dec!==undefined?c.o.dec:0, unit=c.o.unit!==undefined?c.o.unit:'%';
+  if(labels){ ctx.font='10px sans-serif'; ctx.fillStyle='#93a1b5';
+    const lx=Math.min(c.X(xn)+5, c.L+c.pw-46);
+    ctx.fillText(c.o.xdist?fmtDist(xn):String(xn), lx, c.T+10); }
+  (c.o.series||[]).forEach(se=>{ if(se.noTip||!se.data.length) return;
+    const pt=nearestPt(se,xn), px=c.X(pt[0]), py=c.Y(pt[1]);
+    ctx.fillStyle=se.color; ctx.beginPath(); ctx.arc(px,py,3.2,0,7); ctx.fill();
+    if(labels){ const t=pt[1].toFixed(dec)+unit, tx=Math.min(px+6, c.L+c.pw-26);
+      ctx.font='10px sans-serif'; ctx.lineWidth=3; ctx.strokeStyle='rgba(10,14,20,.85)';
+      ctx.strokeText(t,tx,py-4); ctx.fillStyle=se.color; ctx.fillText(t,tx,py-4); } });
 }
 function pill(v){ const c=v>=55?'p-good':v>=30?'p-warn':'p-bad'; return `<span class="pill ${c}">${Math.round(v)}%</span>`; }
 
