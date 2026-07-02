@@ -1,6 +1,6 @@
 # Jagged Alliance 2 v1.13 — Understanding & Tuning the New Chance‑To‑Hit (NCTH) System
 
-*A source‑grounded analysis of HEADROCK's NCTH shooting model, why low‑level mercs "can't hit anything", and exactly which knobs to turn.*
+*A source‑grounded analysis of the NCTH shooting model — designed and written by **Headrock** (see his own design document: ["New Chance To Hit system — The Formula", The Bear's Pit](https://thepit.ja-galaxy-forum.com/index.php?t=msg&th=16717&start=0&)) — why low‑level mercs "can't hit anything", and exactly which knobs to turn.*
 
 Prepared from the actual mod source (`source/Tactical/Weapons.cpp`, `source/Tactical/LOS.cpp`, `source/Ja2/GameSettings.cpp`) and the live tuning files (`gamedir/Data-1.13/CTHConstants.ini`, `Ja2_Options.INI`, `DifficultySettings.xml`). Every formula below was read from the code, numerically reproduced, and cross‑checked by an adversarial review pass.
 
@@ -245,7 +245,15 @@ CthConstantsAimDifficultyPlayer   = 15
 ```
 → +15% base and aim while campaign progress < 30%, fading to 0. Doesn't touch enemies, veterans, or late game at all.
 
-**Recommended combination to start:** **Recipe A + Recipe C.** A tightens the low‑level cone through skill/equipment terms; C cushions the very early game without permanently trivialising anything. Then sit with the Tuning Lab and dial `IRON_SIGHT_PERFORMANCE_BONUS` / `DEGREES_MAXIMUM_APERTURE` to taste.
+**Recipe D — "OCTH‑like feel" (make the cursor honest).** The old system's promise was simple: the displayed % *is* the hit chance. This 3‑line change tunes NCTH so the cursor ≈ the real hit chance at typical 12–18 tile engagements (optimized numerically against the model for a recruit and a veteran), while staying fully NCTH — cone of fire, optics, stances all intact. Closer than that the real chance runs *above* the cursor (as OCTH felt generous up close), beyond ~20 tiles it still decays.
+```
+IRON_SIGHT_PERFORMANCE_BONUS      = 30     ; was 20
+IRON_SIGHTS_MAX_APERTURE_MODIFIER = 2.0    ; was 3.0  (iron sights ≈ a 2x scope at range)
+BASE_EXP                          = 2.0    ; was 3.0
+```
+→ L4/70 at 12t: cursor 57% / real **67%** (vanilla real 46%) · at 16t: 57% / **50%** · veteran L6/85 at 16t: cursor 70% / real **74%** (vanilla 53%). Snap shots stay weak (~32% at 10t). Also loadable as the "OCTH‑like feel" preset in the Tuning Lab.
+
+**Recommended combination to start:** **Recipe A + Recipe C** (or **Recipe D** alone if your main complaint is the lying cursor). A tightens the low‑level cone through skill/equipment terms; C cushions the very early game without permanently trivialising anything. Then sit with the Tuning Lab and dial `IRON_SIGHT_PERFORMANCE_BONUS` / `DEGREES_MAXIMUM_APERTURE` to taste.
 
 ---
 

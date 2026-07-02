@@ -75,3 +75,20 @@ td:first-child,th:first-child{text-align:left}
 .unitseg button{background:var(--panel2);color:var(--mut);border:1px solid #37425a;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11.5px}
 .unitseg button.on{background:var(--acc);color:#06202e;border-color:var(--acc);font-weight:700}
 canvas{cursor:crosshair}
+
+/* ---- info buttons + modal ---- */
+.ib{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:6px;border-radius:50%;
+  border:1px solid #45536e;background:var(--panel2);color:#8fb7d8;font-size:10px;font-weight:700;cursor:pointer;
+  vertical-align:1px;padding:0;line-height:1;font-family:Georgia,serif;font-style:italic}
+.ib:hover{border-color:var(--acc);color:var(--acc)}
+#ncth-modal{position:fixed;inset:0;z-index:100;display:none;background:rgba(6,9,14,.62);backdrop-filter:blur(2px)}
+#ncth-modal .im-card{position:relative;max-width:580px;margin:9vh auto 0;background:var(--panel);border:1px solid #37425a;
+  border-radius:12px;padding:18px 20px 14px;max-height:76vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.6)}
+#ncth-modal h3{margin:0 30px 6px 0;font-size:15px;color:var(--acc);font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+#ncth-modal .im-x{position:absolute;top:8px;right:12px;background:none;border:0;color:var(--mut);font-size:22px;cursor:pointer;line-height:1}
+#ncth-modal .im-x:hover{color:var(--ink)}
+#ncth-modal .im-meta{color:var(--mut);font-size:12px;margin-bottom:8px}
+#ncth-modal p{font-size:13px;line-height:1.6;margin:8px 0;color:var(--ink)}
+#ncth-modal .im-hr{border-left:3px solid var(--warn);background:#1a1f2a;padding:8px 12px;border-radius:0 8px 8px 0;color:#e8dcc0;font-style:italic}
+#ncth-modal .im-hr span{color:var(--mut);font-size:11.5px;font-style:normal}
+#ncth-modal .im-src{color:var(--mut);font-size:11.5px;border-top:1px solid #2a3346;padding-top:9px;margin-top:12px}

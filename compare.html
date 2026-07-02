@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>NCTH Lab — Compare</title>
-<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
+<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script><script src="assets/params.js"></script>
 </head><body>
 <div id="nav"></div>
 <div class="intro">
@@ -30,11 +30,11 @@ function card(id,b,color){
   const wopt=N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('');
   const sopt=N.SCOPES.map((sc,i)=>`<option value="${i}">${sc.name}</option>`).join('');
   return `<div class="card" style="border-top:3px solid ${color}"><h2 style="color:${color}">Build ${id.toUpperCase()}</h2>
-    <div class="row"><label>Experience</label><span class="val">${b.exp}</span><input data-b="${id}" data-k="exp" type="range" min="1" max="10" step="1" value="${b.exp}"></div>
-    <div class="row"><label>Marksmanship</label><span class="val">${b.marks}</span><input data-b="${id}" data-k="marks" type="range" min="0" max="100" step="1" value="${b.marks}"></div>
-    <div class="row"><label>Weapon</label><select data-b="${id}" data-k="wpn">${wopt}</select></div>
-    <div class="row"><label>Optic</label><select data-b="${id}" data-k="scope">${sopt}</select></div>
-    <div class="row"><label>Stance</label><div class="seg" data-b="${id}" data-k="stance">
+    <div class="row"><label>Experience ${N.infoBtn('exp')}</label><span class="val">${b.exp}</span><input data-b="${id}" data-k="exp" type="range" min="1" max="10" step="1" value="${b.exp}"></div>
+    <div class="row"><label>Marksmanship ${N.infoBtn('marks')}</label><span class="val">${b.marks}</span><input data-b="${id}" data-k="marks" type="range" min="0" max="100" step="1" value="${b.marks}"></div>
+    <div class="row"><label>Weapon ${N.infoBtn('wpn')}</label><select data-b="${id}" data-k="wpn">${wopt}</select></div>
+    <div class="row"><label>Optic ${N.infoBtn('scope')}</label><select data-b="${id}" data-k="scope">${sopt}</select></div>
+    <div class="row"><label>Stance ${N.infoBtn('stance')}</label><div class="seg" data-b="${id}" data-k="stance">
       <button data-v="stand">Stand</button><button data-v="crouch">Crouch</button><button data-v="prone">Prone</button></div></div>
   </div>`;
 }

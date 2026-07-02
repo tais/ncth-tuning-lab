@@ -232,7 +232,7 @@ function burst(s,C,dTiles,t,sight,mag,grad){
 // =================== UI HELPERS ===================
 function nav(active){
   const T=[['index.html','Accuracy'],['optics.html','Optics'],['conditions.html','Conditions'],
-           ['autofire.html','Recoil & Autofire'],['compare.html','Compare']];
+           ['autofire.html','Recoil & Autofire'],['weapons.html','Weapons'],['compare.html','Compare']];
   let t=T.map(([h,l])=>`<a href="${h}"${h===active?' class="on"':''}>${l}</a>`).join('');
   t+=`<a href="reference.html"${active==='reference.html'?' class="on ref"':' class="ref"'}>All parameters</a>`;
   t+=`<a href="report.html"${active==='report.html'?' class="on"':''}>Report</a>`;
@@ -257,9 +257,13 @@ function bind(root, s, render){
       if(el.tagName==='SELECT' && !isNaN(v) && num) v=parseFloat(v);
       setPath(path, (el.tagName==='SELECT'&&!num)? el.value : v);
       show(); save(s); render(); });
+    const ik=infoKeyFor(path), lab=el.parentElement.querySelector('label');
+    if(ik&&lab&&!lab.querySelector('.ib')) lab.insertAdjacentHTML('beforeend',infoBtn(ik));
   });
   root.querySelectorAll('[data-seg]').forEach(seg=>{
     const path=seg.dataset.seg, num=('num' in seg.dataset);
+    { const ik=infoKeyFor(path), lab=seg.parentElement.querySelector('label');
+      if(ik&&lab&&!lab.querySelector('.ib')) lab.insertAdjacentHTML('beforeend',infoBtn(ik)); }
     seg.querySelectorAll('button').forEach(b=>{
       if(String(getPath(path))===b.dataset.v) b.classList.add('on'); else b.classList.remove('on');
       b.addEventListener('click',()=>{ seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
@@ -368,6 +372,122 @@ function lineChart(cv, o){
   }
 }
 function pill(v){ const c=v>=55?'p-good':v>=30?'p-warn':'p-bad'; return `<span class="pill ${c}">${Math.round(v)}%</span>`; }
+
+// =================== INFO BUTTONS + MODAL ===================
+const THREAD='https://thepit.ja-galaxy-forum.com/index.php?t=msg&th=16717&start=0&';
+// Design-intent notes by Headrock (sole author of NCTH), from "New Chance To Hit system — The Formula" (Bear's Pit, 2010).
+// Note: some numeric defaults evolved after 2010; the intent stands.
+const HR={
+ DEGREES_MAXIMUM_APERTURE:'The maximum bullet-deviation cone. Lowering the angle gives a tighter spread for everyone, regardless of skill.',
+ NORMAL_SHOOTING_DISTANCE:'The optimal-range reference for optics: a 2× scope performs best at twice this distance, a 10× scope at ten times it.',
+ BASE_EXP:'Experience dominates the snap-shot. It is much less important for aimed fire — that is what marksmanship is for.',
+ BASE_MARKS:'The average merc should have around 15–20 base CTH unaimed; base CTH is deliberately low — it represents uncontrolled fire.',
+ AIM_MARKS:'Marksmanship is the primary skill for deliberate aim; precision correlates to training.',
+ AIM_DEX:'Stability matters when aiming — weapon steadiness relies on physical control.',
+ AIM_EXP:'Experience, which played a major role in Base CTH, is now much less important when aiming precisely.',
+ BASE_PSYCHO:'I personally don’t think psychos should be MORE accurate than anyone else — they’re more likely to shoot more bullets randomly at the target.',
+ AIM_PSYCHO:'Lack of focus worsens deliberate aim even more than reflexive fire.',
+ BASE_SAME_TARGET:'The shooter learns the target’s location — the bonus applies if the shooter kept aiming and the target hasn’t moved.',
+ BASE_INJURY:'Bleeding injuries penalize proportionally to max health; bandaged damage is only a third as severe.',
+ AIM_INJURY:'Roughly double the base penalty — wounds cripple deliberate aim.',
+ BASE_FATIGUE:'Applied against breath percentage: half the penalty at 50% breath.',
+ AIM_FATIGUE:'Holding a weapon steady takes stamina; fatigue hits aiming too.',
+ BASE_GASSED:'Gas obscures vision and ruins accuracy.',
+ AIM_GASSED:'Aiming through gas is even worse than snap-shooting through it.',
+ BASE_SHOCK:'The maximum suppression penalty is only achievable by complete noobs under heavy fire — experienced mercs stop accumulating shock much earlier.',
+ AIM_SHOCK:'Suppression cripples focused aiming just as hard.',
+ BASE_SHOOTING_UPWARDS:'Divided by range — shooting upward is awkward up close but negligible at distance.',
+ BASE_TARGET_INVISIBLE:'You cannot snap-shoot what you cannot see: base CTH drops to nearly zero.',
+ AIM_TARGET_INVISIBLE:'Snipers suffer much less of this penalty and can hit targets they can’t see, based solely on a spotter’s line of sight.',
+ BASE_STANDING_STANCE:'For quick fire you want to stand up, and for aimed fire you want to get down.',
+ AIM_STANDING_STANCE:'Standing is penalized when aiming — it’s unstable; prone is steadiest.',
+ BASE_DRAW_COST:'Gun Handling equals the AP cost to ready the gun — heavy, cumbersome weapons pay for it in accuracy.',
+ AIM_DRAW_COST:'Aiming is slightly less penalized by gun size and weight than snap fire.',
+ AIM_TOO_CLOSE_SCOPE:'A gun with a scope mounted on top is harder to aim properly when the target is too close — it’s probably better to spend the APs to remove the scope.',
+ MOVEMENT_TRACKING_DIFFICULTY:'A character with 50 combined skill suffers the movement penalty for any target moving up to ~10 tiles a turn; skilled shooters start compensating sooner.',
+ MOVEMENT_PENALTY_PER_TILE:'The penalty accumulates per tile moved, then skilled compensation claws it back at half rate beyond the threshold.',
+};
+// Info entries for the non-INI controls (grounded in the current source)
+const INFO={
+ exp:{t:'Experience level',h:'<p>The dominant stat for <b>Base CTH</b> (snap shots): the formula multiplies it by 10 <i>and</i> weights it ×3, so with vanilla weights one experience level is worth ~30 marksmanship points to the unaimed shot. It matters far less for the aimed cap (weight 1).</p>',hr:'Experience dominates the snap-shot. It is much less important for aimed fire.'},
+ marks:{t:'Marksmanship',h:'<p>The dominant stat for the <b>CTH cap</b> — the ceiling aiming can reach (weight 3, vs experience 1). A high-marks recruit has a good ceiling but still a poor unaimed floor. Marksmanship 0 makes the shooter unable to hit at all (hard gate in the source).</p>',hr:'Marksmanship is the primary skill for deliberate aim; precision correlates to training.'},
+ dex:{t:'Dexterity',h:'<p>Second-strongest cap stat (weight 2) — a steady hand raises how far aiming can take you. Dexterity 0 = never hits (hard gate). Also weighs into recoil-counter accuracy on full-auto.</p>'},
+ wis:{t:'Wisdom',h:'<p>Weight 1 in both the base and the cap — a mild general contributor. Also helps track moving targets and time recoil corrections.</p>'},
+ agi:{t:'Agility',h:'<p>Used by the recoil system: contributes to how much counter-force you can apply (weight 1) and how often/accurately you correct during a burst (frequency weight 3).</p>'},
+ str:{t:'Strength',h:'<p>The main recoil-taming stat: weight 3 in <code>CalcCounterForceMax</code> — how much force the shooter can exert against muzzle climb during burst/auto fire. Irrelevant to single aimed shots.</p>'},
+ stance:{t:'Shooter stance',h:'<p>Stance multiplies the gun-handling penalty differently for the two halves: standing ×2 base / ×1.5 aim; crouch ×3 / ×1.25; prone ×4 / ×1.0. So standing is best for snap shots, prone for aimed shots. Prone (or a rested bipod) also flattens the cone vertically via <code>VERTICAL_BIAS</code>, and lower stances add recoil counter-force.</p>',hr:'For quick fire you want to stand up, and for aimed fire you want to get down.'},
+ diff:{t:'Game difficulty',h:'<p>Difficulty applies asymmetric CTH modifiers from <code>DifficultySettings.xml</code>: the <b>player</b> gets +20 (Novice) / +10 (Experienced) / 0 (Expert &amp; Insane), fading out by 30% campaign progress; <b>enemies</b> get −30 / 0 / +20 / +50 that never fades.</p>',hr:'Enemy AI cheats at higher difficulties — a relic from the old CTH system, preserved as adjustable coefficients.'},
+ prog:{t:'Campaign progress',h:'<p>The player’s difficulty CTH bonus fades linearly and hits zero at 30% campaign progress: <code>max(0, 30 − progress) × bonus / 30</code>. An early-game crutch that removes itself.</p>'},
+ handling:{t:'Weapon handling',h:'<p>The gun’s Handling stat (≈ AP cost to ready it; pistols ~9, assault rifles ~11, LMGs ~13). It feeds the biggest base-CTH penalty: <code>−handling × stance × BASE_DRAW_COST</code> — e.g. a standing rifle loses 44% of its base CTH at vanilla values.</p>',hr:'Gun Handling equals the AP cost to ready the gun — heavy, cumbersome weapons pay for it in accuracy.'},
+ maxaim:{t:'Max aim clicks',h:'<p>How many aiming levels the gun allows. Each click adds a diminishing slice of the (cap − base) span: with N clicks the first gives N/(N(N+1)/2) of it, the last just 1 slice. Spending all clicks reaches the cap exactly.</p>',hr:'The first aiming level gives 8 of these fractions (8/36), the second 7 (7/36)… the system becomes self-contained.'},
+ sight:{t:'Sight type',h:'<p>Iron sights get <code>IRON_SIGHT_PERFORMANCE_BONUS</code> and the distance gradient — always fully effective. Scopes divide the cone by their magnification, but only beyond their minimum range, skill-gated by <code>SCOPE_EFFECTIVENESS_*</code>.</p>'},
+ mag:{t:'Scope magnification',h:'<p>A scope’s effective power is clamped by range: <code>min(mag, (range/NORMAL_SHOOTING_DISTANCE)/SCOPE_RANGE_MULTIPLIER)</code> — a 4× reaches full power at ~20 tiles, a 10× at ~49. Below ~80% of that range it also takes an aiming penalty. Low-skill shooters only unlock part of the magnification.</p>',hr:'A shot with a 10× scope at 10 tiles is actually harder than with a 2× at 10 tiles.'},
+ xmax:{t:'Chart max range',h:'<p>Display-only: how far the charts plot. Big scopes need long ranges to shine — a 10× scope reaches full magnification only at ~49 tiles (~490 m).</p>'},
+ tw:{t:'Target half-width',h:'<p>Half the silhouette’s width in map units (1 tile = 10 units = 10 m). The engine models bodies as stacks of 2-unit-wide "cubes" (JSD structures); a man is ~3 cubes wide from the front.</p>'},
+ th:{t:'Target half-height',h:'<p>Half the silhouette’s height in units. Standing ≈ 3 cubes (~19 units tall); crouching 2; prone just 1 — which is why prone targets are so hard to hit.</p>'},
+ targetstance:{t:'Target stance presets',h:'<p>Sets the silhouette to the engine’s JSD proportions: Standing 3×9 (half-extents), Crouched 3×6, Prone 3.5×3, Head-only 1.5×2. A prone target exposes roughly a third of a standing one.</p>'},
+ health:{t:'Health',h:'<p>Injury penalizes both halves: up to <code>BASE_INJURY</code> (−30%) and <code>AIM_INJURY</code> (−60%) at 0 health, linear in missing health. The slider treats all damage as fresh/bleeding — bandaged damage counts only a third as much in the engine.</p>',hr:'Bleeding injuries penalize proportionally to max health; bandaged damage is only a third as severe.'},
+ breath:{t:'Breath / stamina',h:'<p>Fatigue costs up to <code>BASE_FATIGUE</code> (−15%) and <code>AIM_FATIGUE</code> (−40%) at zero breath, linear. Tired mercs aim much worse than they snap-shoot.</p>',hr:'Holding a weapon steady takes stamina; fatigue hits aiming too.'},
+ morale:{t:'Morale modifier',h:'<p>The engine’s <code>GetMoraleModifier</code> output: up to <b>+5</b> at 95+ morale, down to <b>−20</b> at 0. Each point is multiplied by the BASE/AIM morale coefficients (+2/−1 base, +1/−2 aim per point).</p>'},
+ shock:{t:'Suppression shock',h:'<p>Suppression points (0–30). At max shock the penalties are <code>BASE_SHOCK</code>/<code>AIM_SHOCK</code> = −150% — total helplessness. Low-experience mercs accumulate shock fastest, which compounds the low-level accuracy problem under fire.</p>',hr:'The maximum penalty is only achievable by complete noobs under heavy fire.'},
+ drunk:{t:'Drink state',h:'<p>Base/aim penalties: tipsy −5/−10, drunk −20/−40, wasted −50/−90, hungover −10/−15. Aim penalties are roughly double — drunk mercs are snap-shooters only.</p>',hr:'Wasted renders aiming near-impossible.'},
+ gassed:{t:'Gassed',h:'<p>In a gas cloud without a mask: −15% base / −80% aim with current values. Aiming through tears is nearly pointless.</p>',hr:'Aiming through gas is even worse than snap-shooting through it.'},
+ bullets:{t:'Bullets in volley',h:'<p>Burst/auto volley length. Bullet #1 is the aimed shot (recoil-free in the engine); every later bullet adds the gun’s recoil, partially countered by strength/agility (<code>CalcCounterForceMax</code>) and skill (<code>CalcCounterForceAccuracy</code>).</p>'},
+ gunRecoil:{t:'Gun recoil per bullet',h:'<p>The gun’s per-bullet muzzle climb (Weapons.xml <code>bRecoilY</code>; e.g. MP5 ≈ 6, AK-74 ≈ 7, Glock-18 ≈ 13). Attachments (foregrip, bipod) boost the counter-force that fights it.</p>'},
+ aprange:{t:'Range',h:'<p>Distance to the target. Distances here follow the game’s convention: 1 tile = 10 map units = 10 meters (per the INI’s own documentation).</p>'},
+ laser:{t:'Laser pointer',h:'<p>Lasers shrink the base aperture by <code>LASER_PERFORMANCE_BONUS_*</code> (hip/iron/scope), scaled by darkness at the target — the dot is easier to see at night. Full bonus inside laser range, fading to zero at ~1.2–2.5× range.</p>'},
+ laserRange:{t:'Laser range',h:'<p>The attachment’s <code>BestLaserRange</code> (Laser Sight 100 units = 10 tiles, Rifle LAM 300 = 30 tiles). Beyond it the bonus fades linearly, dying entirely at a light-dependent maximum (~1.2× in daylight, ~2.5× in darkness).</p>'},
+ dark:{t:'Target darkness',h:'<p>How dark the target’s tile is (0 = bright day, 100 = night). Darker = the laser dot is more visible = bigger laser bonus, and it extends the laser’s falloff range.</p>'},
+ bulletdev:{t:'Gun bullet-deviation',h:'<p>The second scatter layer (<code>CalcBulletDeviation</code>): the gun’s own inaccuracy, on top of the muzzle-sway cone and <b>invisible on the cursor</b>. Scales with <code>MAX_BULLET_DEV × (100−accuracy)</code> and steps up at 2×/3× the gun’s effective range (integer division in the source).</p>'},
+ wpn:{t:'Weapon example',h:'<p>Loads representative stats from <code>Weapons.xml</code>: handling, aim levels, recoil, accuracy and effective range (Glock-18, MP5, AK-74, FN FAL, MG36, SPAS-15, SVD).</p>'},
+ 'att.bipod':{t:'Bipod (rested)',h:'<p>When deployed (prone / weapon rest): +100% max counter-force, +35% counter-accuracy, and the shot gets the prone boni (flattened cone). Costs +20% handling when carried. Values from Items.xml.</p>'},
+ 'att.foregrip':{t:'Foregrip',h:'<p>+70% max counter-force, +30% counter-accuracy, −10% handling (from Items.xml) — the all-round burst-control attachment that also slightly helps snap shots.</p>'},
+ 'att.match':{t:'Match ammo',h:'<p>Match-grade magazines carry <code>PercentAccuracyModifier = 10</code>: +10% gun accuracy, which shrinks the bullet-deviation scatter layer. No effect on the cursor %.</p>'},
+ 'att.extender':{t:'Barrel extender',h:'<p>Extends the gun’s effective range (~+25%), which delays the range-dependent growth of bullet deviation. Warning: in the engine it can fall off when firing.</p>'},
+ scope:{t:'Optic',h:'<p>Real scope magnifications from Items.xml (2× / 3.5× G36 / 4× ACOG &amp; PSO-1 / 7× / 10×). Each has a minimum effective range ≈ <code>mag × NORMAL_SHOOTING_DISTANCE × SCOPE_RANGE_MULTIPLIER</code>.</p>'},
+ cond:{t:'Other condition modifier',h:'<p>A free-form extra percentage on both CTH halves — stand-in for anything not modeled (weather mods, situational penalties).</p>'},
+};
+function infoBtn(key){ return `<button class="ib" type="button" data-info="${key}" title="What is this?">i</button>`; }
+function escHtml(t){ return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+let _modal=null;
+function ensureModal(){ if(_modal||typeof document==='undefined'||!document.body) return;
+  _modal=document.createElement('div'); _modal.id='ncth-modal';
+  _modal.innerHTML='<div class="im-card"><button class="im-x" type="button">×</button><h3 id="im-t"></h3><div id="im-b"></div></div>';
+  document.body.appendChild(_modal);
+  _modal.addEventListener('click',e=>{ if(e.target===_modal||e.target.classList.contains('im-x')) _modal.style.display='none'; });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') _modal.style.display='none'; });
+}
+function showInfo(key){
+  ensureModal(); if(!_modal) return;
+  let title='', body='';
+  if(key.indexOf('ini:')===0){
+    const k=key.slice(4), mp=INIMAP[k]; if(!mp) return;
+    const ini=mp[0];
+    title=ini;
+    const P=(typeof window!=='undefined'&&window.NCTH_PARAMS)?window.NCTH_PARAMS.find(p=>p.key===ini):null;
+    body+=`<div class="im-meta">${mp[1]==='Ja2_Options.INI'?'Ja2_Options.INI':'CTHConstants.ini · ['+mp[1]+']'}`+(P?` · current value <b>${escHtml(P.value)}</b>`:'')+`</div>`;
+    if(P&&P.effect) body+=`<p><b>Raising it:</b> ${escHtml(P.effect)}</p>`;
+    if(P&&P.desc) body+=`<p>${escHtml(P.desc)}</p>`;
+    if(HR[ini]) body+=`<p class="im-hr">“${HR[ini]}”<br><span>— Headrock, NCTH design notes (2010)</span></p>`;
+  } else {
+    const e=INFO[key]; if(!e) return;
+    title=e.t; body=e.h;
+    if(e.hr) body+=`<p class="im-hr">“${e.hr}”<br><span>— Headrock, NCTH design notes (2010)</span></p>`;
+  }
+  body+=`<p class="im-src">NCTH was designed and written by <b>Headrock</b>. Deep dive: <a href="${THREAD}" target="_blank" rel="noopener">“New Chance To Hit system — The Formula” (The Bear’s Pit)</a>.</p>`;
+  _modal.querySelector('#im-t').textContent=title;
+  _modal.querySelector('#im-b').innerHTML=body;
+  _modal.style.display='block';
+}
+if(typeof document!=='undefined'&&document.addEventListener){
+  document.addEventListener('click',e=>{ const b=e.target&&e.target.closest&&e.target.closest('[data-info]');
+    if(b){ e.preventDefault(); showInfo(b.dataset.info); } });
+}
+// resolve an info key for a bound control path; null if we have nothing to say
+function infoKeyFor(path){
+  if(path.indexOf('PROP.')===0||path.indexOf('CUR.')===0){ const k=path.split('.')[1]; return INIMAP[k]?('ini:'+k):null; }
+  return INFO[path]?path:null;
+}
 
 // ---- INI export: internal key -> real INI key/section/file ----
 const G='General',BC='Base CTH',AC='Aiming CTH',SM='Shooting Mechanism',JO='Ja2_Options.INI';
@@ -540,5 +660,6 @@ window.NCTH={ DEFAULTS, WEAPONS, SCOPES, ATTACHMENTS, TARGETS, attachCard, load,
   cfAccuracy, cfMax, burst, vbias,
   nav, bind, shooterCard, tuningCard, lineChart, pill, CELL,
   iniDiff, iniText, exportCard, renderExport, banner, wireBannerReset, syncControls, heatmap,
-  tip, hideTip, fmtDist, distVal, distAxisLabel, units:()=>UNITS, setUnits };
+  tip, hideTip, fmtDist, distVal, distAxisLabel, units:()=>UNITS, setUnits,
+  infoBtn, showInfo, THREAD };
 })();

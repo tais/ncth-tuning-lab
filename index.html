@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>NCTH Lab — Accuracy</title>
-<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
+<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script><script src="assets/params.js"></script>
 </head><body>
 <div id="nav"></div>
 <div id="banner"></div>
@@ -24,7 +24,7 @@ document.getElementById('nav').innerHTML=N.nav('index.html');
 document.getElementById('c1').innerHTML =
   N.shooterCard() +
   `<div class="card"><h2>The Gun &amp; Situation</h2>
-    <div class="row"><label>Weapon example</label><select id="wpn">${N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('')}</select></div>
+    <div class="row"><label>Weapon example ${N.infoBtn('wpn')}</label><select id="wpn">${N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('')}</select></div>
     <div class="row"><label>Weapon handling (rifle≈11)</label><span class="val"></span><input data-bind="handling" type="range" min="4" max="22" step="1"></div>
     <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
     <div class="row"><label>Chart max range</label><span class="val"></span><input data-bind="xmax" type="range" min="20" max="80" step="5" data-dist></div>
@@ -34,7 +34,7 @@ document.getElementById('c1').innerHTML =
     <div class="note">Handling×stance drives the gun-difficulty penalty. Bullet-deviation adds the weapon's own accuracy scatter (grows with range, invisible on the cursor).</div>
   </div>
   <div class="card"><h2>Target silhouette (units · 1 tile=10)</h2>
-    <div class="row"><label>Target stance</label><div class="seg" id="tgt">${N.TARGETS.map((t,i)=>`<button data-v="${i}">${t.name}</button>`).join('')}</div></div>
+    <div class="row"><label>Target stance ${N.infoBtn('targetstance')}</label><div class="seg" id="tgt">${N.TARGETS.map((t,i)=>`<button data-v="${i}">${t.name}</button>`).join('')}</div></div>
     <div class="row"><label>Half-width</label><span class="val"></span><input data-bind="tw" type="range" min="1.5" max="6" step="0.5"></div>
     <div class="row"><label>Half-height</label><span class="val"></span><input data-bind="th" type="range" min="4" max="14" step="0.5"></div>
     <div class="note">A bullet hits if the swayed muzzle point lands on the body. Defaults ≈ a whole standing man.</div>
@@ -84,7 +84,8 @@ document.getElementById('c3').innerHTML =
     <button id="pv">Reset to Vanilla</button>
     <button id="pb">Low-level buff → PROPOSED</button>
     <button id="pt">Tighter cone → PROPOSED</button>
-    <div class="note">Presets change only the <b style="color:var(--prop)">PROPOSED</b> values.</div></div>` +
+    <button id="po">OCTH-like feel → PROPOSED</button>
+    <div class="note">Presets change only the <b style="color:var(--prop)">PROPOSED</b> values. "OCTH-like feel" makes the cursor % roughly equal the real hit chance at 12–18 tiles, like the old system promised.</div></div>` +
   N.exportCard();
 
 function rng(){ const a=[],step=Math.max(1,Math.round(s.xmax/40)); for(let d=2;d<=s.xmax;d+=step) a.push(d); return a; }
@@ -194,6 +195,7 @@ function applyPreset(o){ Object.assign(s.PROP, o); N.save(s); refreshProp(); ren
 document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); applyPreset(Object.assign({},N.DEFAULTS)); };
 document.getElementById('pb').onclick=()=>applyPreset(Object.assign({},N.DEFAULTS,{IRON_PERF:35,IRON_MOD:2.5,BASE_EXP:2,BASE_MARKS:1.5,BASE_DRAW:1.5}));
 document.getElementById('pt').onclick=()=>applyPreset(Object.assign({},N.DEFAULTS,{DEG_APERTURE:11,IRON_PERF:30}));
+document.getElementById('po').onclick=()=>applyPreset(Object.assign({},N.DEFAULTS,{IRON_PERF:30,IRON_MOD:2,BASE_EXP:2}));
 window.addEventListener('resize',render);
 render();
 </script>

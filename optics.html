@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>NCTH Lab — Optics</title>
-<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script>
+<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script><script src="assets/params.js"></script>
 </head><body>
 <div id="nav"></div>
 <div id="banner"></div>
@@ -28,7 +28,7 @@ const SC=[{n:'Iron',sight:'iron',mag:1,c:'#8b98ad'},{n:'2×',sight:'scope',mag:2
 
 document.getElementById('c1').innerHTML = N.shooterCard() +
   `<div class="card"><h2>Loadout &amp; light</h2>
-    <div class="row"><label>Weapon (sets handling / aim clicks)</label>
+    <div class="row"><label>Weapon (sets handling / aim clicks) ${N.infoBtn('wpn')}</label>
       <select id="wpn">${N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('')}</select></div>
     <div id="wnote" class="note"></div>
     <div class="row"><label>Laser pointer (all optics)</label><div class="seg" data-seg="laser" data-num><button data-v="0">Off</button><button data-v="1">On</button></div></div>

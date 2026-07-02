@@ -32,7 +32,7 @@ strong{color:#fff}
 <div id="nav"></div>
 <main>
 <h1>Jagged Alliance 2 v1.13 — Understanding &amp; Tuning the New Chance‑To‑Hit (NCTH) System</h1>
-<p>*A source‑grounded analysis of HEADROCK's NCTH shooting model, why low‑level mercs "can't hit anything", and exactly which knobs to turn.*</p>
+<p>*A source‑grounded analysis of the NCTH shooting model — designed and written by <strong>Headrock</strong> (see his own design document: <a href="https://thepit.ja-galaxy-forum.com/index.php?t=msg&amp;th=16717&amp;start=0&amp;">"New Chance To Hit system — The Formula", The Bear's Pit</a>) — why low‑level mercs "can't hit anything", and exactly which knobs to turn.*</p>
 <p>Prepared from the actual mod source (<code>source/Tactical/Weapons.cpp</code>, <code>source/Tactical/LOS.cpp</code>, <code>source/Ja2/GameSettings.cpp</code>) and the live tuning files (<code>gamedir/Data-1.13/CTHConstants.ini</code>, <code>Ja2_Options.INI</code>, <code>DifficultySettings.xml</code>). Every formula below was read from the code, numerically reproduced, and cross‑checked by an adversarial review pass.</p>
 <p><strong>Companion files in this folder</strong></p>
 <ul><li><strong><code>index.html</code></strong> — an interactive calculator. Open it in any browser (no install). Move the sliders, watch the real hit‑chance curves move. This is the "let's tune it together" tool.</li><li><code>chart1_realhit.svg</code>, <code>chart2_divergence.svg</code>, <code>chart3_base_vs_exp.svg</code> — the static charts used below.</li></ul>
@@ -339,7 +339,12 @@ MAX_BULLET_DEV                    = 3.5    ; was 5.0</code></pre>
 <pre><code>CthConstantsBaseDifficultyPlayer  = 15
 CthConstantsAimDifficultyPlayer   = 15</code></pre>
 <p>→ +15% base and aim while campaign progress &lt; 30%, fading to 0. Doesn't touch enemies, veterans, or late game at all.</p>
-<p><strong>Recommended combination to start:</strong> <strong>Recipe A + Recipe C.</strong> A tightens the low‑level cone through skill/equipment terms; C cushions the very early game without permanently trivialising anything. Then sit with the Tuning Lab and dial <code>IRON_SIGHT_PERFORMANCE_BONUS</code> / <code>DEGREES_MAXIMUM_APERTURE</code> to taste.</p>
+<p><strong>Recipe D — "OCTH‑like feel" (make the cursor honest).</strong> The old system's promise was simple: the displayed % *is* the hit chance. This 3‑line change tunes NCTH so the cursor ≈ the real hit chance at typical 12–18 tile engagements (optimized numerically against the model for a recruit and a veteran), while staying fully NCTH — cone of fire, optics, stances all intact. Closer than that the real chance runs *above* the cursor (as OCTH felt generous up close), beyond ~20 tiles it still decays.</p>
+<pre><code>IRON_SIGHT_PERFORMANCE_BONUS      = 30     ; was 20
+IRON_SIGHTS_MAX_APERTURE_MODIFIER = 2.0    ; was 3.0  (iron sights ≈ a 2x scope at range)
+BASE_EXP                          = 2.0    ; was 3.0</code></pre>
+<p>→ L4/70 at 12t: cursor 57% / real <strong>67%</strong> (vanilla real 46%) · at 16t: 57% / <strong>50%</strong> · veteran L6/85 at 16t: cursor 70% / real <strong>74%</strong> (vanilla 53%). Snap shots stay weak (~32% at 10t). Also loadable as the "OCTH‑like feel" preset in the Tuning Lab.</p>
+<p><strong>Recommended combination to start:</strong> <strong>Recipe A + Recipe C</strong> (or <strong>Recipe D</strong> alone if your main complaint is the lying cursor). A tightens the low‑level cone through skill/equipment terms; C cushions the very early game without permanently trivialising anything. Then sit with the Tuning Lab and dial <code>IRON_SIGHT_PERFORMANCE_BONUS</code> / <code>DEGREES_MAXIMUM_APERTURE</code> to taste.</p>
 <hr>
 <h2>8. Using the interactive Tuning Lab</h2>
 <p>Open <strong><code>index.html</code></strong>. Set the shooter to your problem case (exp 4, marks 70…), pick stance/sight/difficulty, then edit the <code>CTHConstants</code> sliders — they drive the <strong>purple "Proposed"</strong> curves so you can compare against the <strong>green/blue "Current"</strong>. It reproduces the real code: displayed CTH → <code>muzzleSway = 100 − CTH</code> → aperture geometry → a <code>sqrt(uniform)</code> Monte‑Carlo of the muzzle point vs the target silhouette. The bottom‑left panel draws the actual aperture disk and 250 sample shots so you can *see* the cone shrink as you tune. The presets ("Low‑level buff", "Tighter cone") load the recipes above.</p>

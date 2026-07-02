@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NCTH Lab — Weapons</title>
+<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script><script src="assets/params.js"></script>
+<style>
+  .wgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px;max-width:1780px;margin:0 auto;padding:0 18px 60px}
+  .wcard h3{margin:0 0 2px;font-size:14.5px}
+  .wcard .stats{color:var(--mut);font-size:12px;margin:0 0 8px;font-variant-numeric:tabular-nums}
+  .ctrl{max-width:1780px;margin:0 auto;padding:0 18px 14px}
+  .ctrl .card{display:flex;flex-wrap:wrap;gap:4px 26px;align-items:flex-end}
+  .ctrl .row{margin:4px 0;min-width:170px;flex:0 1 200px}
+</style>
+</head><body>
+<div id="nav"></div>
+<div id="banner"></div>
+<div class="intro">
+  <h1>Weapons — every example gun vs every optic</h1>
+  <p>Each card shows one weapon's real hit chance vs range, one line per optic (same set as the Compare page), for <b>your shooter</b> under the <b>CURRENT</b> tuning. Gun bullet‑deviation is <b>on</b> here by default so each weapon's own accuracy and effective range matter — that's what separates an SVD from an AK beyond handling.</p>
+  <div class="legend" id="leg" style="padding:4px 0 0"></div>
+</div>
+<div class="ctrl"><div class="card" id="cbar"></div></div>
+<div class="wgrid" id="grid"></div>
+<div class="foot">Weapon stats from <code>Weapons.xml</code>, optics from <code>Items.xml</code>. Hover any chart for values. Shooter stance/conditions from the other tabs apply here too (see banner).</div>
+<script>
+const N=NCTH, s=N.load();
+if(s.wpnaim===undefined) s.wpnaim='max';
+if(s.bulletdev===undefined||s._wpnInit===undefined){ s.bulletdev=1; s._wpnInit=1; }   // default ON for this page's first visit
+document.getElementById('nav').innerHTML=N.nav('weapons.html');
+const SC=[{n:'Iron',sight:'iron',mag:1,c:'#8b98ad'},{n:'2×',sight:'scope',mag:2,c:'#54d98c'},
+  {n:'4× ACOG',sight:'scope',mag:4,c:'#5cc8ff'},{n:'7×',sight:'scope',mag:7,c:'#ffcf5c'},
+  {n:'10× sniper',sight:'scope',mag:10,c:'#c58cff'}];
+document.getElementById('leg').innerHTML=SC.map(o=>`<span><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('');
+
+document.getElementById('cbar').innerHTML=`
+  <div class="row"><label>Experience</label><span class="val"></span><input data-bind="exp" type="range" min="1" max="10" step="1"></div>
+  <div class="row"><label>Marksmanship</label><span class="val"></span><input data-bind="marks" type="range" min="0" max="100" step="1"></div>
+  <div class="row"><label>Dexterity</label><span class="val"></span><input data-bind="dex" type="range" min="0" max="100" step="1"></div>
+  <div class="row"><label>Stance</label><div class="seg" data-seg="stance"><button data-v="stand">Stand</button><button data-v="crouch">Crouch</button><button data-v="prone">Prone</button></div></div>
+  <div class="row"><label>Aiming</label><div class="seg" data-seg="wpnaim"><button data-v="max">Max aim</button><button data-v="snap">Snap</button></div></div>
+  <div class="row"><label>Gun bullet-deviation</label><div class="seg" data-seg="bulletdev" data-num><button data-v="0">Off</button><button data-v="1">On</button></div></div>
+  <div class="row"><label>Chart max range</label><span class="val"></span><input data-bind="xmax" type="range" min="20" max="80" step="5" data-dist></div>`;
+
+// build one card per weapon
+document.getElementById('grid').innerHTML=N.WEAPONS.map((w,i)=>`
+  <div class="chartbox wcard"><h3>${w.name}</h3>
+    <div class="stats" id="st${i}"></div>
+    <canvas id="wc${i}" height="210"></canvas>
+  </div>`).join('');
+
+function rngArr(){ const a=[],st=Math.max(2,Math.round(s.xmax/25)); for(let d=2;d<=s.xmax;d+=st) a.push(d); return a; }
+function shooterFor(w){ return Object.assign({},s,{handling:w.handling,maxaim:w.maxaim,gunRecoil:w.gunRecoil,acc:w.acc,effRange:w.effRange}); }
+function hitLine(sw,o,C,rng){ const t=s.wpnaim==='max'?sw.maxaim:0;
+  return rng.map(d=>{ const cth=N.displayedCTH(sw,C,t,{dTiles:d,sight:o.sight,mag:o.mag});
+    const apR=N.aperture(d*N.CELL,100-cth,C,sw,o.sight,o.mag,C.IRON_GRAD);
+    const devR=N.bulletDevRadius(sw,C,d*N.CELL);
+    return [d,100*N.hitProb(apR,C,sw,0,900,devR)]; }); }
+
+function render(){
+  const C=s.CUR, rng=rngArr(), xst=s.xmax>50?10:5;
+  N.WEAPONS.forEach((w,i)=>{
+    const sw=shooterFor(w);
+    document.getElementById('st'+i).innerHTML=
+      `handling <b>${w.handling}</b> · aim clicks <b>${w.maxaim}</b> · recoil <b>${w.gunRecoil}</b>/bullet · accuracy <b>${w.acc}</b> · eff. range <b>${N.fmtDist(w.effRange/N.CELL)}</b>`;
+    N.lineChart(document.getElementById('wc'+i),{xmax:s.xmax,xstep:xst,xdist:true,
+      series:SC.map(o=>({name:o.n,color:o.c,data:hitLine(sw,o,C,rng)}))});
+  });
+  document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
+}
+N.bind(document.body, s, render);
+window.addEventListener('resize',render);
+render();
+</script>
+</body></html>
