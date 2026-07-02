@@ -38,8 +38,7 @@ document.getElementById('c2').innerHTML =
   `<div class="chartbox"><h3>Real hit chance vs range</h3>
     <p class="sub">Healthy baseline vs this merc's current condition (max aim).</p>
     <canvas id="hit" height="280"></canvas>
-    <div class="legend"><span><i class="swatch" style="background:var(--good)"></i>Healthy</span>
-      <span><i class="swatch" style="background:var(--bad)"></i>Current condition</span></div></div>
+    <div class="legend" id="clg"></div></div>
   <div class="chartbox"><h3>What each condition costs</h3>
     <p class="sub">Penalty applied to base chance and aim span (percentage points).</p>
     <table id="brk"></table></div>`;
@@ -64,11 +63,16 @@ function rngArr(){ const a=[],st=Math.max(1,Math.round(s.xmax/40)); for(let d=2;
 const healthy=()=>Object.assign({},s,{health:100,breath:100,morale:0,shock:0,drunk:0,gassed:0});
 function render(){
   const C=s.CUR, hs=healthy();
-  const rng=rngArr(), xst=s.xmax>50?10:5;
-  N.lineChart(document.getElementById('hit'),{xmax:s.xmax,xstep:xst,xdist:true,series:[
+  const rng=rngArr(), xst=s.xmax>50?10:5, hasProp=N.iniDiff(s).length>0;
+  const series=[
     {name:'Healthy',color:'#54d98c',data:rng.map(d=>[d,100*N.realHit(hs,C,d,s.maxaim,s.sight,s.mag,C.IRON_GRAD).p])},
     {name:'Current condition',color:'#ff6b6b',data:rng.map(d=>[d,100*N.realHit(s,C,d,s.maxaim,s.sight,s.mag,C.IRON_GRAD).p])},
-  ]});
+  ];
+  if(hasProp) series.push({name:'Current condition (proposed tuning)',color:'#c58cff',dash:[6,4],data:rng.map(d=>[d,100*N.realHit(s,s.PROP,d,s.maxaim,s.sight,s.mag,s.PROP.IRON_GRAD).p])});
+  N.lineChart(document.getElementById('hit'),{xmax:s.xmax,xstep:xst,xdist:true,series});
+  document.getElementById('clg').innerHTML='<span><i class="swatch" style="background:var(--good)"></i>Healthy</span>'+
+    '<span><i class="swatch" style="background:var(--bad)"></i>Current condition</span>'+
+    (hasProp?'<span><i class="swatch" style="background:var(--prop)"></i>Current condition · proposed tuning</span>':'');
   const rows=[
     ['Injury', C.BASE_INJURY*(100-s.health)/100, C.AIM_INJURY*(100-s.health)/100],
     ['Fatigue', C.BASE_FATIGUE*(100-s.breath)/100, C.AIM_FATIGUE*(100-s.breath)/100],

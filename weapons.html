@@ -45,7 +45,7 @@ const SC=[{n:'Iron',sight:'iron',mag:1,c:'#8b98ad'},{n:'2×',sight:'scope',mag:2
 function renderLeg(){
   document.getElementById('leg').innerHTML='<b>Optics:</b>'+SC.map((o,i)=>
     `<span class="${s.optvis[i]?'':'off'}" data-oi="${i}" title="Click to show/hide this optic"><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('')+
-    '<span class="hint">click an optic to show/hide its line</span>';
+    '<span class="hint">click an optic to toggle · dashed = PROPOSED tuning (when edits active)</span>';
   document.querySelectorAll('#leg [data-oi]').forEach(el=>{ el.onclick=()=>{ const i=+el.dataset.oi;
     s.optvis[i]=s.optvis[i]?0:1; N.save(s); renderLeg(); render(); }; });
 }
@@ -81,13 +81,15 @@ function hitLine(sw,o,C,rng){ const t=s.wpnaim==='max'?sw.maxaim:0;
 
 function render(){
   const C=s.CUR, rng=rngArr(), xst=s.xmax>50?10:5;
+  const hasProp=N.iniDiff(s).length>0;
   N.WEAPONS.forEach((w,i)=>{
     const sw=shooterFor(w);
     document.getElementById('st'+i).innerHTML=
       `handling <b>${w.handling}</b> · aim clicks <b>${w.maxaim}</b> · recoil <b>${w.gunRecoil}</b>/bullet · accuracy <b>${w.acc}</b> · eff. range <b>${N.fmtDist(w.effRange/N.CELL)}</b>`;
     const act=SC.filter((o,oi)=>s.optvis[oi]);
-    N.lineChart(document.getElementById('wc'+i),{xmax:s.xmax,xstep:xst,xdist:true,group:'wpn',
-      series:act.map(o=>({name:o.n,color:o.c,data:hitLine(sw,o,C,rng)}))});
+    let series=act.map(o=>({name:o.n,color:o.c,data:hitLine(sw,o,C,rng)}));
+    if(hasProp) series=series.concat(act.map(o=>({name:o.n+' (proposed)',color:o.c,dash:[5,4],w:1.7,data:hitLine(sw,o,s.PROP,rng)})));
+    N.lineChart(document.getElementById('wc'+i),{xmax:s.xmax,xstep:xst,xdist:true,group:'wpn',series});
   });
   document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
 }

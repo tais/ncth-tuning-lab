@@ -40,7 +40,7 @@ document.getElementById('c1').innerHTML = N.shooterCard() +
 
 document.getElementById('c2').innerHTML =
   `<div class="chartbox"><h3>Real hit chance vs range — which optic wins?</h3>
-    <p class="sub">Notice each scope's close-range dead zone and where it overtakes iron sights.</p>
+    <p class="sub">Notice each scope's close-range dead zone and where it overtakes iron sights. Dashed = <b style="color:var(--prop)">PROPOSED</b> tuning (when edits are active).</p>
     <canvas id="hit" height="280"></canvas>
     <div class="legend" id="leg"></div></div>
   <div class="chartbox"><h3>Effective magnification vs range</h3>
@@ -84,7 +84,10 @@ function render(){
   const C=s.CUR; rng=rngArr(); const xst=s.xmax>50?10:5;
   // weapon note
   const w=N.WEAPONS[s.wpn]; document.getElementById('wnote').innerHTML=`Handling <b>${s.handling}</b> · max aim <b>${s.maxaim}</b>`;
-  N.lineChart(document.getElementById('hit'),{xmax:s.xmax,xstep:xst,xdist:true,series:SC.map(o=>({name:o.n,color:o.c,data:hitLine(C,o)}))});
+  const hasProp=N.iniDiff(s).length>0;
+  let hitSeries=SC.map(o=>({name:o.n,color:o.c,data:hitLine(C,o)}));
+  if(hasProp) hitSeries=hitSeries.concat(SC.map(o=>({name:o.n+' (proposed)',color:o.c,dash:[5,4],w:1.7,data:hitLine(s.PROP,o)})));
+  N.lineChart(document.getElementById('hit'),{xmax:s.xmax,xstep:xst,xdist:true,series:hitSeries});
   const maxMag=Math.ceil(10*C.SCOPE_EFF_MULT);
   N.lineChart(document.getElementById('mag'),{xmax:s.xmax,xstep:xst,ymax:maxMag,ystep:2,xdist:true,unit:'\u00d7',dec:2,series:
     SC.filter(o=>o.mag>1).map(o=>({name:o.n,color:o.c,data:rng.map(d=>[d,N.scopeEffMag(s,C,o.mag,d)])}))
