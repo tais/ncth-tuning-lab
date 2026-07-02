@@ -7,7 +7,7 @@
 <div id="nav"></div>
 <div class="intro">
   <h1>Compare — two loadouts head‑to‑head</h1>
-  <p>Pit two full builds (shooter + weapon + optic + stance) against each other on one real‑hit‑vs‑range chart. Answer "is the recruit with a 4× better off than the veteran with iron sights?" at each range. Uses vanilla <code>CTHConstants</code>.</p>
+  <p>Pit two full builds (shooter + weapon + optic + stance) against each other on one real‑hit‑vs‑range chart. Answer "is the recruit with a 4× better off than the veteran with iron sights?" at each range. Solid lines use vanilla <code>CTHConstants</code>; <b style="color:var(--prop)">dashed lines</b> show your PROPOSED tuning when edits are active.</p>
 </div>
 <div style="max-width:1200px;margin:0 auto;padding:8px 18px 60px">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" id="builds"></div>
@@ -19,7 +19,7 @@
     <div id="cross" class="note"></div></div>
 </div>
 <script>
-const N=NCTH; document.getElementById('nav').innerHTML=N.nav('compare.html');
+const N=NCTH, S=N.load(); document.getElementById('nav').innerHTML=N.nav('compare.html');
 const KEY='ncth-compare-v1';
 let B; try{ B=JSON.parse(localStorage.getItem(KEY)); }catch(e){}
 if(!B) B={ a:{exp:4,marks:70,stance:'stand',wpn:2,scope:4}, b:{exp:6,marks:85,stance:'stand',wpn:6,scope:0} };
@@ -45,7 +45,7 @@ function buildShooter(b){ const sh=N.freshState(), w=N.WEAPONS[b.wpn], sc=N.SCOP
 function label(b){ return `${N.WEAPONS[b.wpn].name.split(' (')[0]} + ${N.SCOPES[b.scope].name} · exp ${b.exp}/mrk ${b.marks}`; }
 
 function rngArr(){ const a=[],st=Math.max(1,Math.round(B.xmax/40)); for(let d=2;d<=B.xmax;d+=st) a.push(d); return a; }
-function line(b){ const sh=buildShooter(b), C=N.DEFAULTS;
+function line(b,C){ C=C||N.DEFAULTS; const sh=buildShooter(b);
   return rngArr().map(d=>[d,100*N.realHit(sh,C,d,sh.maxaim,sh.sight,sh.mag,C.IRON_GRAD).p]); }
 function render(){
   document.getElementById('builds').innerHTML=card('a',B.a,'#54d98c')+card('b',B.b,'#c58cff');
@@ -64,8 +64,13 @@ function draw(){
   const la=line(B.a), lb=line(B.b);
   document.getElementById('la').textContent=label(B.a);
   document.getElementById('lb').textContent=label(B.b);
-  N.lineChart(document.getElementById('hit'),{xmax:B.xmax,xstep:B.xmax>50?10:5,xdist:true,series:[
-    {name:'A · '+label(B.a),color:'#54d98c',data:la},{name:'B · '+label(B.b),color:'#c58cff',data:lb}]});
+  const series=[
+    {name:'A · '+label(B.a),color:'#54d98c',data:la},{name:'B · '+label(B.b),color:'#c58cff',data:lb}];
+  if(N.iniDiff(S).length>0){
+    series.push({name:'A · proposed tuning',color:'#54d98c',dash:[5,4],w:1.7,data:line(B.a,S.PROP)});
+    series.push({name:'B · proposed tuning',color:'#c58cff',dash:[5,4],w:1.7,data:line(B.b,S.PROP)});
+  }
+  N.lineChart(document.getElementById('hit'),{xmax:B.xmax,xstep:B.xmax>50?10:5,xdist:true,series});
   // find crossover(s)
   let cross=[]; for(let i=1;i<la.length;i++){ const d0=la[i-1][1]-lb[i-1][1], d1=la[i][1]-lb[i][1];
     if((d0<0)!==(d1<0)) cross.push(la[i][0]); }
