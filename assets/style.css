@@ -76,6 +76,14 @@ td:first-child,th:first-child{text-align:left}
 .unitseg button.on{background:var(--acc);color:#06202e;border-color:var(--acc);font-weight:700}
 canvas{cursor:crosshair}
 
+/* ---- active-modifiers banner: fixed top-right pill, no layout impact ---- */
+#banner{position:fixed;top:8px;right:16px;z-index:60;max-width:46vw;text-align:right;pointer-events:none}
+#banner .banpill{display:inline-block;pointer-events:auto;background:rgba(41,36,20,.92);border:1px solid #4a4327;
+  color:var(--warn);border-radius:8px;padding:5px 11px;font-size:12px;line-height:1.5;backdrop-filter:blur(4px);
+  box-shadow:0 3px 12px rgba(0,0,0,.35)}
+#banner .banpill a{color:var(--acc);margin-left:5px}
+@media(max-width:1100px){#banner{position:static;max-width:none;text-align:left;padding:6px 18px}}
+
 /* ---- info buttons + modal ---- */
 .ib{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:6px;border-radius:50%;
   border:1px solid #45536e;background:var(--panel2);color:#8fb7d8;font-size:10px;font-weight:700;cursor:pointer;

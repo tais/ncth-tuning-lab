@@ -589,12 +589,12 @@ function banner(s){
   const gear=ATTACHMENTS.filter(a=>A(s)[a.key]).map(a=>a.key);
   const nprop=iniDiff(s).length;
   if(!cond.length && !gear.length && !nprop) return '';
-  const link=(id,txt)=>`<a href="#" id="${id}" style="color:var(--acc);margin-left:5px">${txt}</a>`;
+  const link=(id,txt)=>`<a href="#" id="${id}">${txt}</a>`;
   const parts=[];
   if(cond.length) parts.push(`${cond.join(' · ')} ${link('banreset','reset conditions')}`);
   if(gear.length) parts.push(`gear: ${gear.join(', ')} ${link('banresetgear','remove')}`);
   if(nprop) parts.push(`${nprop} proposed edit${nprop>1?'s':''} ${link('banresetedits','reset edits')}`);
-  return `<div style="max-width:1780px;margin:0 auto;padding:6px 18px"><span style="background:rgba(255,207,92,.12);border:1px solid #4a4327;color:var(--warn);border-radius:8px;padding:5px 10px;font-size:12px">⚙ Active: ${parts.join(' &nbsp;•&nbsp; ')}</span></div>`;
+  return `<span class="banpill">⚙ Active: ${parts.join(' &nbsp;•&nbsp; ')}</span>`;
 }
 function wireBannerReset(s,render){
   const root=document.querySelector('.lab');
