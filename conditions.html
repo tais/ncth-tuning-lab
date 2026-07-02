@@ -25,7 +25,7 @@ document.getElementById('c1').innerHTML = N.shooterCard() +
   `<div class="card"><h2>Condition</h2>
     <div class="row"><label>Health %</label><span class="val"></span><input data-bind="health" type="range" min="10" max="100" step="5"></div>
     <div class="row"><label>Breath / stamina %</label><span class="val"></span><input data-bind="breath" type="range" min="0" max="100" step="5"></div>
-    <div class="row"><label>Morale (± vs 50)</label><span class="val"></span><input data-bind="morale" type="range" min="-10" max="10" step="1"></div>
+    <div class="row"><label>Morale modifier (game range −20…+5)</label><span class="val"></span><input data-bind="morale" type="range" min="-20" max="5" step="1"></div>
     <div class="row"><label>Suppression shock (0–30)</label><span class="val"></span><input data-bind="shock" type="range" min="0" max="30" step="1"></div>
     <div class="row"><label>Drink</label><select data-bind="drunk" data-num>
       <option value="0">Sober</option><option value="1">Tipsy</option><option value="2">Drunk</option><option value="3">Wasted</option><option value="4">Hungover</option></select></div>

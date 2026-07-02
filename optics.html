@@ -32,7 +32,9 @@ document.getElementById('c1').innerHTML = N.shooterCard() +
       <select id="wpn">${N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('')}</select></div>
     <div id="wnote" class="note"></div>
     <div class="row"><label>Laser pointer (all optics)</label><div class="seg" data-seg="laser" data-num><button data-v="0">Off</button><button data-v="1">On</button></div></div>
+    <div class="row"><label>Laser range in tiles (Laser Sight 10, Rifle LAM 30)</label><span class="val"></span><input data-bind="laserRange" type="range" min="5" max="40" step="1"></div>
     <div class="row"><label>Target darkness % (laser dot)</label><span class="val"></span><input data-bind="dark" type="range" min="0" max="100" step="5"></div>
+    <div class="note">Laser gives its full bonus inside its range, then fades linearly to zero at 1.2–2.5× range (darker = dot visible further), per the laser block in <code>AdjustTargetCenterPoint</code>.</div>
   </div>`;
 
 document.getElementById('c2').innerHTML =
@@ -67,9 +69,14 @@ document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE)
 document.getElementById('leg').innerHTML=SC.map(o=>`<span><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('');
 
 const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
-function laserMul(C,sight){ if(!s.laser) return 1; const b=sight==='scope'?C.LASER_SCOPE:C.LASER_IRON; return (100-b*s.dark/100)/100; }
+function laserMul(C,sight,dTiles){ if(!s.laser) return 1;
+  const b=sight==='scope'?C.LASER_SCOPE:C.LASER_IRON, bright=s.dark/100, lr=s.laserRange||10;
+  // C++ (LOS.cpp:8643-78): full bonus inside laser range, linear falloff to a light-extended max range
+  const maxLr=lr*(7/6 + 4*bright/3);                    // ≈1.2x in daylight … 2.5x in darkness
+  let f=0; if(dTiles<=lr) f=1; else if(dTiles<maxLr) f=(maxLr-dTiles)/(maxLr-lr);
+  return (100-b*bright*f)/100; }
 function hitLine(C,o){ return rng.map(d=>{ let apR=N.aperture(d*N.CELL,100-N.displayedCTH(s,C,s.maxaim,{dTiles:d,sight:o.sight,mag:o.mag}),C,s,o.sight,o.mag,C.IRON_GRAD);
-  apR*=laserMul(C,o.sight); return [d,100*N.hitProb(apR,C,s)]; }); }
+  apR*=laserMul(C,o.sight,d); return [d,100*N.hitProb(apR,C,s)]; }); }
 
 function render(){
   const C=s.CUR;
@@ -90,7 +97,7 @@ function render(){
   const cols=[5,10,15,20,25,30,35,40];
   N.heatmap(document.getElementById('heat'), SC.map(o=>({label:o.n})), cols, (ri,ci)=>{
     const o=SC[ri], d=cols[ci];
-    const apR=N.aperture(d*N.CELL,100-N.displayedCTH(s,C,s.maxaim,{dTiles:d,sight:o.sight,mag:o.mag}),C,s,o.sight,o.mag,C.IRON_GRAD)*laserMul(C,o.sight);
+    const apR=N.aperture(d*N.CELL,100-N.displayedCTH(s,C,s.maxaim,{dTiles:d,sight:o.sight,mag:o.mag}),C,s,o.sight,o.mag,C.IRON_GRAD)*laserMul(C,o.sight,d);
     return 100*N.hitProb(apR,C,s);
   }, {xlabel:'range (tiles)'});
   document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);

@@ -34,8 +34,8 @@ function freshState(){
     stance:'stand', diff:3, prog:0,
     handling:11, maxaim:6, sight:'iron', mag:4,
     tw:3.5, th:10,
-    // gun deviation / visibility
-    acc:63, effRange:330, bulletdev:0, vis:100,
+    // gun deviation / visibility / laser
+    acc:63, effRange:330, bulletdev:0, vis:100, laser:0, laserRange:10, dark:40,
     // attachments
     att:{bipod:0, foregrip:0, match:0, extender:0},
     // conditions
@@ -104,7 +104,6 @@ function displayedCTH(s,C,t,opts){
   const cm=condMods(s,C), hnd=effHandling(s);
   const baseMod=-(hnd*stanceBase(s,C)*C.BASE_DRAW) + playerDiff(s) + cm.base;
   base=Math.max(0,Math.min(100, base*(100+baseMod)/100));
-  if(A(s).match) base+=5;   // match parts / accurizing: small flat CTH bonus (ToHitBonus)
   if(t<=0) return Math.max(C.MIN_CTH, Math.min(base,C.MAX_CTH));
   let cap=Math.min(Math.max(capAttr(s,C), Math.max(0,base)), C.MAX_CTH);
   let aimMod=-(C.AIM_DRAW*hnd*stanceAim(s,C)) + playerDiff(s) + cm.aim;
@@ -160,10 +159,11 @@ const vbias=(s,C)=> {const st=effStance(s); return st==='stand'?1 : st==='prone'
 // gun bullet-deviation radius (2nd scatter layer, absent from displayed CTH). CalcBulletDeviation, LOS.cpp:9541
 function bulletDevRadius(s,C,dUnits){
   if(!s.bulletdev) return 0;
-  const acc=Math.min(100, s.acc + (A(s).match?20:0));      // match/accurizing raises accuracy
-  const effR=(s.effRange||1)*(A(s).extender?1.25:1);       // barrel extender adds effective range
+  const acc=Math.min(100, s.acc*(1+(A(s).match?10:0)/100)); // match ammo: PercentAccuracyModifier=10
+  const effR=(s.effRange||1)*(A(s).extender?1.25:1);        // barrel extender adds effective range
   let dev=C.MAX_BULLET_DEV*(100-acc)/100;
-  if(C.RANGE_EFFECTS_DEV) dev*=Math.max(1, dUnits/effR);
+  // C++ computes uiRange/sEffRange with INTEGER division (LOS.cpp:9582): ratio steps 1,2,3… at 1x,2x,3x eff-range
+  if(C.RANGE_EFFECTS_DEV) dev*=Math.max(1, Math.floor(dUnits/effR));
   dev/=2;                       // CellXY/ScreenXY compensation
   dev*=dUnits/C.NORMAL_DIST;    // iDistanceRatio
   return Math.max(0,dev);
@@ -200,12 +200,14 @@ function cfAccuracy(s,C){ // 0..100 = how accurately recoil is countered
 }
 function cfMax(s,C){
   let v=(C.RC_MAX_STR*s.str + C.RC_MAX_AGI*s.agi + C.RC_MAX_EXP*s.exp*10)/(C.RC_MAX_STR+C.RC_MAX_AGI+C.RC_MAX_EXP);
-  v=v*C.RC_MAX_FORCE/100;
+  // C++ pools stance + attachment percentages into ONE modifier, applied once (Items.cpp:10759-65, LOS.cpp:9830),
+  // then scales by RECOIL_MAX_COUNTER_FORCE last
   const st=effStance(s);
-  if(st==='crouch') v+=C.RC_MAX_CROUCH*C.RC_MAX_FORCE/100;
-  if(st==='prone')  v+=C.RC_MAX_PRONE*C.RC_MAX_FORCE/100;
-  v*=1 + ((A(s).bipod?100:0)+(A(s).foregrip?70:0))/100;   // PercentMaxCounterForce
-  return v;
+  let mod=(A(s).bipod?100:0)+(A(s).foregrip?70:0);        // PercentMaxCounterForce
+  if(st==='crouch') mod+=C.RC_MAX_CROUCH;
+  if(st==='prone')  mod+=C.RC_MAX_PRONE;
+  v+=v*mod/100;
+  return v*C.RC_MAX_FORCE/100;
 }
 // conceptual per-bullet muzzle-walk for a burst/auto volley (teaching model)
 function burst(s,C,dTiles,t,sight,mag,grad){
@@ -451,7 +453,7 @@ const TARGETS=[
 const ATTACHMENTS=[
   {key:'bipod',    name:'Bipod (rested / prone)', eff:'weapon rest → prone boni · +100% recoil control · +20% handling (bulkier)'},
   {key:'foregrip', name:'Foregrip / angled grip', eff:'+70% recoil control · +30% counter-accuracy · −10% handling'},
-  {key:'match',    name:'Match parts / accurizing', eff:'+gun accuracy (less scatter) · small flat CTH bonus'},
+  {key:'match',    name:'Match ammo', eff:'+10% gun accuracy → less bullet-deviation scatter'},
   {key:'extender', name:'Barrel extender',        eff:'+25% effective range → less long-range bullet deviation'},
 ];
 function attachCard(keys){ const list=keys?ATTACHMENTS.filter(a=>keys.includes(a.key)):ATTACHMENTS;
