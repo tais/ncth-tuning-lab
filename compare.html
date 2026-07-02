@@ -20,7 +20,7 @@
 <div id="nav"></div>
 <div id="banner"></div>
 <div class="intro">
-  <h1>Compare — up to six loadouts head‑to‑head</h1>
+  <h1>Compare — up to eight loadouts head‑to‑head</h1>
   <p>Pit full builds (shooter + weapon + optic + stance) against each other on one real‑hit‑vs‑range chart. Solid lines use vanilla <code>CTHConstants</code>; <b style="color:var(--prop)">dashed lines</b> show your PROPOSED tuning when edits are active.</p>
 </div>
 <div class="cwrap">
@@ -38,8 +38,8 @@
 <script>
 const N=NCTH, S=N.load();
 document.getElementById('nav').innerHTML=N.nav('compare.html');
-const KEY='ncth-compare-v1', MAXB=6, LET='ABCDEF';
-const COLORS=['#54d98c','#c58cff','#5cc8ff','#ffcf5c','#ff8f6b','#6be8e0'];
+const KEY='ncth-compare-v1', MAXB=8, LET='ABCDEFGH';
+const COLORS=['#54d98c','#c58cff','#5cc8ff','#ffcf5c','#ff8f6b','#6be8e0','#f78fb3','#d9e07a'];
 let B; try{ B=JSON.parse(localStorage.getItem(KEY)); }catch(e){}
 if(B && B.a && !B.builds) B={builds:[B.a,B.b],xmax:B.xmax||40};       // migrate old two-build shape
 if(!B || !Array.isArray(B.builds) || B.builds.length<2)
