@@ -23,8 +23,8 @@ document.getElementById('nav').innerHTML=N.nav('autofire.html');
 
 document.getElementById('c1').innerHTML = N.shooterCard({extraStats:true}) +
   `<div class="card"><h2>Burst / autofire</h2>
-    <div class="row"><label>Weapon example (burst-capable only) ${N.infoBtn('wpn')}</label>
-      <select id="wpn"><option value="-1">— pick a gun —</option>${N.WEAPONS.map((w,i)=>w.gunRecoil>0?`<option value="${i}">${w.name}</option>`:'').join('')}</select></div>
+    <div class="row"><label>Weapon example ${N.infoBtn('wpn')}</label>
+      <select id="wpn">${N.WEAPONS.map((w,i)=>`<option value="${i}"${w.gunRecoil>0?'':' disabled'}>${w.name}${w.gunRecoil>0?'':' — single fire, no burst'}</option>`).join('')}</select></div>
     <div class="row"><label>Bullets in volley</label><span class="val"></span><input data-bind="bullets" type="range" min="1" max="12" step="1"></div>
     <div class="row"><label>Gun recoil per bullet</label><span class="val"></span><input data-bind="gunRecoil" type="range" min="0" max="20" step="1"></div>
     <div class="row"><label>Range</label><span class="val"></span><input data-bind="aprange" type="range" min="2" max="80" step="1" data-dist></div>
@@ -98,7 +98,7 @@ function render(){
   ]});
   drawWalk(bC);
   document.getElementById('sum').innerHTML =
-    (s.gunRecoil<=0?`<span style="color:var(--warn)">⚠ Gun recoil is 0 — semi-auto guns like the SVD have no recoil data (<code>bRecoilX/Y = 0</code>), so every bullet flies like the aimed first shot and the chart is flat. Pick a burst-capable gun above or raise the recoil slider (MP5 ≈ 6, AK-74 ≈ 7, Glock-18 ≈ 13).</span><br>`:'')+
+    (s.gunRecoil<=0?`<span style="color:var(--warn)">⚠ <b>${(s.wpn!==undefined&&N.WEAPONS[s.wpn])?N.WEAPONS[s.wpn].name:'This gun'}</b> is single-fire (<code>bRecoilX/Y = 0</code> in Weapons.xml) — it cannot burst, so every bullet flies like the aimed first shot and the chart is flat. Pick a burst-capable gun above or raise the recoil slider (MP5 ≈ 6, AK-74 ≈ 7, Glock-18 ≈ 13).</span><br>`:'')+
     `Average hit across the volley: CURRENT <b>${(100*bC.avg).toFixed(0)}%</b> · PROPOSED <b style="color:var(--prop)">${(100*bP.avg).toFixed(0)}%</b>. `+
     `Counter-force accuracy <b>${N.cfAccuracy(s,s.CUR).toFixed(0)}%</b>, max counter-force <b>${N.cfMax(s,s.CUR).toFixed(1)}</b> vs recoil <b>${s.gunRecoil}</b>/bullet.`;
   N.pageChrome(s,render);
@@ -106,8 +106,9 @@ function render(){
 const root=document.querySelector('.lab');
 N.bind(root,s,render);
 const wsel=document.getElementById('wpn');
-wsel.onchange=()=>{ const i=+wsel.value; if(i<0) return; const w=N.WEAPONS[i];
-  s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil; s.acc=w.acc; s.effRange=w.effRange;
+if(s.wpn!==undefined&&N.WEAPONS[s.wpn]) wsel.value=s.wpn;   // show which gun's stats are loaded (even if single-fire)
+wsel.onchange=()=>{ const i=+wsel.value; if(!(i>=0)) return; const w=N.WEAPONS[i];
+  s.wpn=i; s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil; s.acc=w.acc; s.effRange=w.effRange;
   N.save(s); N.syncControls(root,s); render(); };
 function refreshProp(){ N.syncControls(root,s); }
 document.getElementById('pv').onclick=()=>N.resetVanilla(s,root,render);
