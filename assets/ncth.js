@@ -236,8 +236,9 @@ function nav(active){
   let t=T.map(([h,l])=>`<a href="${h}"${h===active?' class="on"':''}>${l}</a>`).join('');
   t+=`<a href="reference.html"${active==='reference.html'?' class="on ref"':' class="ref"'}>All parameters</a>`;
   t+=`<a href="report.html"${active==='report.html'?' class="on"':''}>Report</a>`;
-  t+=`<span class="unitseg" title="1 tile = 10 m (per CTHConstants.ini)">`+
-     ['tiles','m','yd'].map(u=>`<button data-unit="${u}"${UNITS===u?' class="on"':''}>${u}</button>`).join('')+`</span>`;
+  t+=`<span class="unitseg" title="1 tile = 10 m (the game's official ballistic scale — click i for details)">`+
+     ['tiles','m','yd'].map(u=>`<button data-unit="${u}"${UNITS===u?' class="on"':''}>${u}</button>`).join('')+
+     infoBtn('unitscale')+`</span>`;
   return `<div class="topnav"><div class="brand">JA2 1.13 · NCTH Tuning Lab <small>— faithful shot-by-shot model</small></div><nav class="tabs">${t}</nav></div>`;
 }
 // bind all [data-bind] inputs/selects and [data-seg] segmented controls to state
@@ -479,6 +480,10 @@ const INFO={
  'att.extender':{t:'Barrel extender',h:'<p>Extends the gun’s effective range (~+25%), which delays the range-dependent growth of bullet deviation. Warning: in the engine it can fall off when firing.</p>'},
  scope:{t:'Optic',h:'<p>Real scope magnifications from Items.xml (2× / 3.5× G36 / 4× ACOG &amp; PSO-1 / 7× / 10×). Each has a minimum effective range ≈ <code>mag × NORMAL_SHOOTING_DISTANCE × SCOPE_RANGE_MULTIPLIER</code>.</p>'},
  cond:{t:'Other condition modifier',h:'<p>A free-form extra percentage on both CTH halves — stand-in for anything not modeled (weather mods, situational penalties).</p>'},
+ unitscale:{t:'Distance scale: 1 tile = 10 m?',h:'<p>JA2 1.13 deliberately uses <b>two different scales</b>:</p>'+
+  '<p><b>Ballistic scale — 1 tile = 10 m (official).</b> All weapon ranges, NCTH distances and the in-game "m" display use it: the item UI shows <code>GunRange</code> raw as meters and divides by 10 for tiles (<code>Interface Items.cpp:12287</code>), <code>CTHConstants.ini</code> states it twice ("measured in METERS … 100 means 10 tiles"), and the community confirms it: <i>"every tile in game is considered 10 meters"</i> (Bear’s Pit, NCTH settings contest). It exists so real-world gun ranges (AK ~330 m, SVD ~790 m) fit on 160-tile maps.</p>'+
+  '<p><b>Physical scale — 1 tile ≈ 1–2 m.</b> Spatially a tile holds exactly one person, doorways are one tile wide, and a merc runs ~20 tiles per ~5-second turn — all of which only make sense at human scale. At 10 m/tile a running merc would move at 40+ m/s.</p>'+
+  '<p>This compression (~5–10×) is a standard tactical-wargame trick: shooting maths pretends distances are long, movement/art pretend they are short. The lab’s m/yd units follow the <b>official ballistic scale</b> so its numbers match the game’s own range labels.</p>'},
 };
 function infoBtn(key){ return `<button class="ib" type="button" data-info="${key}" title="What is this?">i</button>`; }
 function escHtml(t){ return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -564,17 +569,103 @@ function iniText(s){
     out.push(''); });
   return out.join('\n');
 }
+// ---- mod ZIP export: full CTHConstants.ini with edits applied, packaged drop-in ----
+const CRC_T=(()=>{ const t=new Uint32Array(256);
+  for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; }
+  return t; })();
+function crc32(bytes){ let c=0xFFFFFFFF;
+  for(let i=0;i<bytes.length;i++) c=CRC_T[(c^bytes[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0; }
+// minimal ZIP (stored entries, no compression) — returns Uint8Array
+function makeZip(files){
+  const enc=new TextEncoder(), parts=[], central=[]; let offset=0;
+  const now=new Date();
+  const dtime=((now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1))&0xFFFF;
+  const ddate=(((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate())&0xFFFF;
+  const u16=v=>[v&255,(v>>8)&255], u32=v=>[v&255,(v>>8)&255,(v>>16)&255,(v>>>24)&255];
+  files.forEach(f=>{
+    const name=enc.encode(f.name), data=enc.encode(f.text), crc=crc32(data);
+    const head=new Uint8Array([0x50,0x4b,3,4, ...u16(20), ...u16(0), ...u16(0), ...u16(dtime), ...u16(ddate),
+      ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0)]);
+    parts.push(head,name,data);
+    central.push({name,crc,size:data.length,offset});
+    offset+=head.length+name.length+data.length;
+  });
+  const cdStart=offset; let cdSize=0;
+  central.forEach(e=>{
+    const rec=new Uint8Array([0x50,0x4b,1,2, ...u16(20), ...u16(20), ...u16(0), ...u16(0), ...u16(dtime), ...u16(ddate),
+      ...u32(e.crc), ...u32(e.size), ...u32(e.size), ...u16(e.name.length), ...u16(0), ...u16(0),
+      ...u16(0), ...u16(0), ...u32(0), ...u32(e.offset)]);
+    parts.push(rec,e.name); cdSize+=rec.length+e.name.length;
+  });
+  parts.push(new Uint8Array([0x50,0x4b,5,6, ...u16(0), ...u16(0), ...u16(central.length), ...u16(central.length),
+    ...u32(cdSize), ...u32(cdStart), ...u16(0)]));
+  let total=0; parts.forEach(p=>total+=p.length);
+  const out=new Uint8Array(total); let pos=0;
+  parts.forEach(p=>{ out.set(p,pos); pos+=p.length; });
+  return out;
+}
+// apply the PROP diff to the embedded vanilla CTHConstants.ini
+function buildTunedIni(s){
+  let txt=(typeof window!=='undefined'&&window.CTH_TEMPLATE)||'';
+  if(!txt) return null;
+  const d=iniDiff(s), applied=[], options=[];
+  d.forEach(x=>{
+    if(x.file!=='CTHConstants.ini'){ options.push(x); return; }
+    const re=new RegExp('^([ \\t]*'+x.ini+'[ \\t]*=[ \\t]*).*$','m');
+    if(re.test(txt)){
+      txt=txt.replace(re, `; NCTH Tuning Lab: was ${fmtV(x.cur,x.bool)}\n$1${fmtV(x.prop,x.bool)}`);
+      applied.push(x);
+    } else options.push(x);
+  });
+  return {txt, applied, options};
+}
+function buildModZip(s){
+  const t=buildTunedIni(s); if(!t||!t.applied.length&&!t.options.length) return null;
+  let readme='NCTH tuning package - generated by the NCTH Tuning Lab\n'
+    +'https://tais.github.io/ncth-tuning-lab/\n\n'
+    +'Contains:\n  Data-1.13/CTHConstants.ini  (vanilla 1.13 file with the changes below applied)\n\n'
+    +'Changes applied to CTHConstants.ini:\n'
+    +(t.applied.length? t.applied.map(x=>`  ${x.ini} = ${fmtV(x.prop,x.bool)}   (was ${fmtV(x.cur,x.bool)})`).join('\n') : '  (none)')
+    +'\n\nTo install:\n'
+    +'  1. BACK UP your existing Data-1.13/CTHConstants.ini.\n'
+    +'  2. Copy the Data-1.13 folder from this zip over your JA2 1.13 install folder (next to Ja2.exe).\n'
+    +'     (If you play a different mod/vfs profile, put CTHConstants.ini in that mod\'s data folder instead.)\n'
+    +'  3. NCTH must be enabled - in Data-1.13/Ja2_Options.INI, section [Tactical Gameplay Settings], set:\n'
+    +'       NCTH = TRUE\n';
+  if(t.options.length)
+    readme+='\nAlso set these by hand in Data-1.13/Ja2_Options.INI (not included in this zip):\n'
+      +t.options.map(x=>`  ${x.ini} = ${fmtV(x.prop,x.bool)}   (was ${fmtV(x.cur,x.bool)})`).join('\n')+'\n';
+  readme+='\nNCTH was designed and written by Headrock. Tuning analysis: see report.html on the site above.\n';
+  return makeZip([
+    {name:'Data-1.13/CTHConstants.ini', text:t.txt},
+    {name:'README-NCTH-Tuning.txt', text:readme},
+  ]);
+}
+function downloadModZip(s){
+  const bytes=buildModZip(s); if(!bytes) return;
+  const blob=new Blob([bytes],{type:'application/zip'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='ncth-tuning.zip';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
+}
+
 function exportCard(prefix){ prefix=prefix||'exp';
   return `<div class="card"><h2>Proposed changes <span class="propflag">(vs vanilla)</span></h2>
     <div id="${prefix}_diff" class="note">No changes yet — edit a slider above.</div>
     <textarea id="${prefix}_ini" readonly style="width:100%;height:120px;margin-top:8px;background:#0e1219;color:#bfe3ff;border:1px solid #2a3346;border-radius:6px;font:11.5px ui-monospace,Menlo,monospace;padding:8px;display:none"></textarea>
     <button id="${prefix}_copy" style="display:none;margin-top:8px" class="chip">Copy INI block</button>
+    <button id="${prefix}_zip" style="display:none;margin-top:8px" class="chip" title="Full CTHConstants.ini with your changes applied + install README — drop over your JA2 1.13 folder">Download mod ZIP</button>
     <span id="${prefix}_msg" style="color:var(--good);font-size:12px;margin-left:8px"></span></div>`;
 }
 function renderExport(s,prefix){ prefix=prefix||'exp';
   const d=iniDiff(s), diffEl=document.getElementById(prefix+'_diff'), ta=document.getElementById(prefix+'_ini'), btn=document.getElementById(prefix+'_copy');
+  const zbtn=document.getElementById(prefix+'_zip');
   if(!diffEl) return;
-  if(!d.length){ diffEl.innerHTML='No changes yet — edit a slider above.'; ta.style.display='none'; btn.style.display='none'; return; }
+  if(!d.length){ diffEl.innerHTML='No changes yet — edit a slider above.'; ta.style.display='none'; btn.style.display='none'; if(zbtn) zbtn.style.display='none'; return; }
+  if(zbtn){ zbtn.style.display='inline-block';
+    if(!zbtn.dataset.wired){ zbtn.dataset.wired='1'; zbtn.onclick=()=>downloadModZip(s); } }
   diffEl.innerHTML='<table style="margin-top:2px"><tr><th>Key</th><th>was</th><th>→ now</th></tr>'+
     d.map(x=>`<tr><td style="font-family:ui-monospace,monospace;font-size:11px;color:#bfe3ff">${x.ini}</td><td>${fmtV(x.cur,x.bool)}</td><td style="color:var(--prop);font-weight:700">${fmtV(x.prop,x.bool)}</td></tr>`).join('')+'</table>';
   ta.value=iniText(s); ta.style.display='block'; btn.style.display='inline-block';
@@ -707,5 +798,6 @@ window.NCTH={ DEFAULTS, WEAPONS, SCOPES, ATTACHMENTS, TARGETS, attachCard, load,
   nav, bind, shooterCard, tuningCard, lineChart, pill, CELL,
   iniDiff, iniText, exportCard, renderExport, banner, wireBannerReset, syncControls, heatmap,
   tip, hideTip, fmtDist, distVal, distAxisLabel, units:()=>UNITS, setUnits,
-  infoBtn, showInfo, THREAD };
+  infoBtn, showInfo, THREAD,
+  makeZip, buildTunedIni, buildModZip, downloadModZip };
 })();
