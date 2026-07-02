@@ -12,6 +12,7 @@
 <div style="max-width:1200px;margin:0 auto;padding:8px 18px 60px">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" id="builds"></div>
   <div class="chartbox" style="margin-top:14px"><h3>Real hit chance vs range</h3>
+    <div class="row" style="max-width:380px"><label>Chart max range (10× scope needs ~49 tiles!)</label><span class="val" id="xmv"></span><input id="xm" type="range" min="20" max="100" step="5"></div>
     <canvas id="hit" height="320"></canvas>
     <div class="legend"><span><i class="swatch" style="background:#54d98c"></i><b id="la">Build A</b></span>
       <span><i class="swatch" style="background:#c58cff"></i><b id="lb">Build B</b></span></div>
@@ -22,6 +23,7 @@ const N=NCTH; document.getElementById('nav').innerHTML=N.nav('compare.html');
 const KEY='ncth-compare-v1';
 let B; try{ B=JSON.parse(localStorage.getItem(KEY)); }catch(e){}
 if(!B) B={ a:{exp:4,marks:70,stance:'stand',wpn:2,scope:4}, b:{exp:6,marks:85,stance:'stand',wpn:6,scope:0} };
+if(!B.xmax) B.xmax=40;
 function saveB(){ try{ localStorage.setItem(KEY,JSON.stringify(B)); }catch(e){} }
 
 function card(id,b,color){
@@ -42,11 +44,14 @@ function buildShooter(b){ const sh=N.freshState(), w=N.WEAPONS[b.wpn], sc=N.SCOP
   return sh; }
 function label(b){ return `${N.WEAPONS[b.wpn].name.split(' (')[0]} + ${N.SCOPES[b.scope].name} · exp ${b.exp}/mrk ${b.marks}`; }
 
-const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
+function rngArr(){ const a=[],st=Math.max(1,Math.round(B.xmax/40)); for(let d=2;d<=B.xmax;d+=st) a.push(d); return a; }
 function line(b){ const sh=buildShooter(b), C=N.DEFAULTS;
-  return rng.map(d=>[d,100*N.realHit(sh,C,d,sh.maxaim,sh.sight,sh.mag,C.IRON_GRAD).p]); }
+  return rngArr().map(d=>[d,100*N.realHit(sh,C,d,sh.maxaim,sh.sight,sh.mag,C.IRON_GRAD).p]); }
 function render(){
   document.getElementById('builds').innerHTML=card('a',B.a,'#54d98c')+card('b',B.b,'#c58cff');
+  const xm=document.getElementById('xm'); if(xm && !xm._wired){ xm._wired=true; xm.value=B.xmax;
+    document.getElementById('xmv').textContent=N.fmtDist(B.xmax);
+    xm.oninput=()=>{ B.xmax=+xm.value; document.getElementById('xmv').textContent=N.fmtDist(B.xmax); saveB(); draw(); }; }
   // set selects + stance state
   document.querySelectorAll('#builds [data-b]').forEach(el=>{ const b=B[el.dataset.b], k=el.dataset.k;
     if(el.tagName==='SELECT'){ el.value=b[k]; el.onchange=()=>{ b[k]=+el.value; saveB(); render(); }; }
@@ -59,14 +64,16 @@ function draw(){
   const la=line(B.a), lb=line(B.b);
   document.getElementById('la').textContent=label(B.a);
   document.getElementById('lb').textContent=label(B.b);
-  N.lineChart(document.getElementById('hit'),{xmax:XMAX,xlabel:'range (tiles)',series:[
-    {name:'a',color:'#54d98c',data:la},{name:'b',color:'#c58cff',data:lb}]});
+  N.lineChart(document.getElementById('hit'),{xmax:B.xmax,xstep:B.xmax>50?10:5,xdist:true,series:[
+    {name:'A · '+label(B.a),color:'#54d98c',data:la},{name:'B · '+label(B.b),color:'#c58cff',data:lb}]});
   // find crossover(s)
   let cross=[]; for(let i=1;i<la.length;i++){ const d0=la[i-1][1]-lb[i-1][1], d1=la[i][1]-lb[i][1];
     if((d0<0)!==(d1<0)) cross.push(la[i][0]); }
-  const at=d=>{ const ia=la.find(p=>p[0]===d), ib=lb.find(p=>p[0]===d); return `A ${ia[1].toFixed(0)}% vs B ${ib[1].toFixed(0)}%`; };
+  const near=d=>{ let pa=la[0],pb=lb[0]; la.forEach(p=>{if(Math.abs(p[0]-d)<Math.abs(pa[0]-d))pa=p;}); lb.forEach(p=>{if(Math.abs(p[0]-d)<Math.abs(pb[0]-d))pb=p;});
+    return `${N.fmtDist(pa[0])}: A ${pa[1].toFixed(0)}% vs B ${pb[1].toFixed(0)}%`; };
+  const q=[Math.round(B.xmax*.25),Math.round(B.xmax*.5),Math.round(B.xmax*.75)];
   document.getElementById('cross').innerHTML =
-    `At 10t: ${at(10)} · 20t: ${at(20)} · 30t: ${at(30)}.` + (cross.length? ` They cross over near <b>${cross.join(', ')} tiles</b>.` : ` One build leads at every range.`);
+    `At ${near(q[0])} · ${near(q[1])} · ${near(q[2])}.` + (cross.length? ` They cross over near <b>${cross.map(c=>N.fmtDist(c)).join(', ')}</b>.` : ` One build leads at every range.`);
 }
 render();
 </script>

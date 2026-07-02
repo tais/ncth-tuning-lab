@@ -25,7 +25,7 @@ document.getElementById('c1').innerHTML = N.shooterCard({extraStats:true}) +
   `<div class="card"><h2>Burst / autofire</h2>
     <div class="row"><label>Bullets in volley</label><span class="val"></span><input data-bind="bullets" type="range" min="1" max="12" step="1"></div>
     <div class="row"><label>Gun recoil per bullet</label><span class="val"></span><input data-bind="gunRecoil" type="range" min="0" max="20" step="1"></div>
-    <div class="row"><label>Range (tiles)</label><span class="val"></span><input data-bind="aprange" type="range" min="2" max="40" step="1"></div>
+    <div class="row"><label>Range</label><span class="val"></span><input data-bind="aprange" type="range" min="2" max="80" step="1" data-dist></div>
     <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
     <div class="row"><label>Weapon handling</label><span class="val"></span><input data-bind="handling" type="range" min="4" max="22" step="1"></div>
     <div class="note">Prone/crouch add counter-force (set stance above). Strength &amp; agility are the recoil-taming stats.</div>
@@ -68,16 +68,31 @@ function drawWalk(b){
   ctx.fillStyle='rgba(84,217,140,.12)'; ctx.strokeStyle='rgba(84,217,140,.8)';
   ctx.fillRect(cx0-8,cyc-s.th*scaleY,cxN-cx0+16,2*s.th*scaleY); ctx.strokeRect(cx0-8,cyc-s.th*scaleY,cxN-cx0+16,2*s.th*scaleY);
   ctx.fillStyle='#93a1b5'; ctx.font='11px sans-serif'; ctx.fillText('target',cx0-8,cyc-s.th*scaleY-4);
+  const pts=[];
   b.rows.forEach((r,i)=>{ const x=cx0+(b.rows.length>1?(cxN-cx0)*i/(b.rows.length-1):0), y=cyc-r.offY*scaleY;
     const inb=Math.abs(r.offY)<=s.th; ctx.fillStyle=inb?'#54d98c':'#ff6b6b';
     ctx.beginPath(); ctx.arc(x,y,4,0,7); ctx.fill();
-    ctx.fillStyle='#6f7d92'; ctx.fillText('#'+(i+1),x-6,H-6); });
+    ctx.fillStyle='#6f7d92'; ctx.fillText('#'+(i+1),x-6,H-6);
+    pts.push({x,y,i:i+1,offY:r.offY,p:r.p}); });
+  cv._walk=pts;
+  if(!cv._tipWired){ cv._tipWired=true;
+    cv.addEventListener('mousemove',e=>{ const P=cv._walk; if(!P) return;
+      const r=cv.getBoundingClientRect(); if(!r||!r.width) return;
+      const mx=(e.clientX-r.left)*(cv.width/r.width), my=(e.clientY-r.top)*(cv.height/r.height);
+      let bp=null,bd=1e9; P.forEach(pt=>{ const d=(pt.x-mx)*(pt.x-mx)+(pt.y-my)*(pt.y-my); if(d<bd){bd=d;bp=pt;} });
+      if(bp && bd<=20*20) N.tip(e.clientX,e.clientY,
+        `<b>Bullet #${bp.i}</b><br>vertical offset: <b>${bp.offY>=0?'+':''}${bp.offY.toFixed(1)}u</b>`+
+        `<br>hit chance: <b>${(100*bp.p).toFixed(0)}%</b>`);
+      else N.hideTip();
+    });
+    cv.addEventListener('mouseleave',N.hideTip);
+  }
 }
 function render(){
   const bC=perBullet(s.CUR), bP=perBullet(s.PROP);
   N.lineChart(document.getElementById('perb'),{xmax:Math.max(2,s.bullets),xstep:1,xlabel:'bullet #',series:[
-    {name:'cur',color:'#54d98c',data:bC.rows.map(r=>[r.i,100*r.p])},
-    {name:'prop',color:'#c58cff',dash:[6,4],data:bP.rows.map(r=>[r.i,100*r.p])},
+    {name:'Current',color:'#54d98c',data:bC.rows.map(r=>[r.i,100*r.p])},
+    {name:'Proposed',color:'#c58cff',dash:[6,4],data:bP.rows.map(r=>[r.i,100*r.p])},
   ]});
   drawWalk(bC);
   document.getElementById('sum').innerHTML =

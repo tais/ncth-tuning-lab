@@ -31,7 +31,7 @@ const KEY='ncth-lab-v1';
 function freshState(){
   return {
     exp:4, marks:70, dex:70, wis:70, agi:70, str:70,
-    stance:'stand', diff:3, prog:0,
+    stance:'stand', diff:3, prog:0, xmax:40,
     handling:11, maxaim:6, sight:'iron', mag:4,
     tw:3.5, th:10,
     // gun deviation / visibility / laser
@@ -236,6 +236,8 @@ function nav(active){
   let t=T.map(([h,l])=>`<a href="${h}"${h===active?' class="on"':''}>${l}</a>`).join('');
   t+=`<a href="reference.html"${active==='reference.html'?' class="on ref"':' class="ref"'}>All parameters</a>`;
   t+=`<a href="report.html"${active==='report.html'?' class="on"':''}>Report</a>`;
+  t+=`<span class="unitseg" title="1 tile = 10 m (per CTHConstants.ini)">`+
+     ['tiles','m','yd'].map(u=>`<button data-unit="${u}"${UNITS===u?' class="on"':''}>${u}</button>`).join('')+`</span>`;
   return `<div class="topnav"><div class="brand">JA2 1.13 · NCTH Tuning Lab <small>— faithful shot-by-shot model</small></div><nav class="tabs">${t}</nav></div>`;
 }
 // bind all [data-bind] inputs/selects and [data-seg] segmented controls to state
@@ -248,7 +250,7 @@ function bind(root, s, render){
     else if(el.tagName==='SELECT'){ el.value=cur; }
     const out=el.parentElement.querySelector('.val');
     const fmt=el.dataset.fmt||'';
-    const show=()=>{ if(out) out.textContent=el.value+(fmt); };
+    const show=()=>{ if(out) out.textContent=('dist' in el.dataset)?fmtDist(parseFloat(el.value)):el.value+(fmt); };
     show();
     const num=('num' in el.dataset);   // valueless data-num => dataset.num==='' (falsy), so test presence
     el.addEventListener('input',()=>{ let v=el.value; if(el.type==='range'||el.type==='number') v=parseFloat(v);
@@ -293,21 +295,77 @@ function tuningCard(title, defs){
   }).join('');
   return `<div class="card"><h2>${title} <span class="propflag">(edit = PROPOSED)</span></h2>${rows}</div>`;
 }
-// canvas line chart
+// ---- shared hover tooltip ----
+let _tip=null;
+function tip(cx,cy,html){
+  if(typeof document==='undefined'||!document.body) return;
+  if(!_tip){ _tip=document.createElement('div'); _tip.id='ncth-tip'; document.body.appendChild(_tip); }
+  _tip.innerHTML=html; _tip.style.display='block';
+  const pad=14, vw=window.innerWidth||1200, vh=window.innerHeight||800;
+  const bw=_tip.offsetWidth, bh=_tip.offsetHeight;
+  let x=cx+pad, y=cy+pad;
+  if(x+bw>vw-8) x=cx-bw-pad;
+  if(y+bh>vh-8) y=cy-bh-pad;
+  _tip.style.left=x+'px'; _tip.style.top=y+'px';
+}
+function hideTip(){ if(_tip) _tip.style.display='none'; }
+
+// ---- distance units: the game defines 1 tile = 10 meters (CTHConstants.ini "measured in METERS ... 100 means 10 tiles")
+const UNITKEY='ncth-units';
+let UNITS='tiles';
+try{ UNITS=localStorage.getItem(UNITKEY)||'tiles'; }catch(e){}
+function setUnits(u){ UNITS=u; try{ localStorage.setItem(UNITKEY,u); }catch(e){} }
+function distVal(tiles){ return UNITS==='m'? tiles*10 : UNITS==='yd'? tiles*10.936 : tiles; }
+function fmtDist(tiles,dec){ const v=distVal(tiles); const d=dec!==undefined?dec:(UNITS==='tiles'?0:0);
+  return v.toFixed(d)+(UNITS==='tiles'?' tiles':UNITS==='m'?' m':' yd'); }
+function distAxisLabel(){ return 'range ('+(UNITS==='tiles'?'tiles':UNITS)+')'; }
+// wire the nav unit switch once via delegation; changing units reloads (all state persists)
+if(typeof document!=='undefined'&&document.addEventListener){
+  document.addEventListener('click',e=>{ const b=e.target&&e.target.closest&&e.target.closest('[data-unit]');
+    if(b){ setUnits(b.dataset.unit); location.reload(); } });
+}
+
+// canvas line chart (hover: vertical guide + per-series value labels)
 function lineChart(cv, o){
   const w=cv.parentElement.clientWidth-28; cv.width=w; cv.style.width=w+'px';
-  const ctx=cv.getContext('2d'); const H=cv.height, L=40,R=12,T=10,B=28, pw=w-L-R, ph=H-T-B;
+  const H=cv.height, L=40,R=12,T=10,B=28, pw=w-L-R, ph=H-T-B;
   const xmax=o.xmax, ymax=o.ymax||100, ystep=o.ystep||20;
   const X=v=>L+v/xmax*pw, Y=v=>T+ph-Math.min(v,ymax)/ymax*ph;
-  ctx.clearRect(0,0,w,H); ctx.font='11px sans-serif';
-  ctx.fillStyle='#93a1b5';
-  for(let g=0;g<=ymax;g+=ystep){ ctx.strokeStyle='#222b3a'; ctx.beginPath(); ctx.moveTo(L,Y(g)); ctx.lineTo(w-R,Y(g)); ctx.stroke();
-    ctx.fillText(g,4,Y(g)+3); }
-  for(let g=0;g<=xmax;g+=o.xstep||5){ ctx.strokeStyle='#1c2431'; ctx.beginPath(); ctx.moveTo(X(g),T); ctx.lineTo(X(g),T+ph); ctx.stroke();
-    ctx.fillText(g,X(g)-4,T+ph+14); }
-  ctx.fillText(o.xlabel||'',L+pw/2-24,H-2);
-  (o.series||[]).forEach(se=>{ ctx.save(); ctx.strokeStyle=se.color; ctx.lineWidth=se.w||2.4; if(se.dash) ctx.setLineDash(se.dash);
-    ctx.beginPath(); se.data.forEach((p,i)=> i?ctx.lineTo(X(p[0]),Y(p[1])):ctx.moveTo(X(p[0]),Y(p[1]))); ctx.stroke(); ctx.restore(); });
+  const draw=()=>{
+    const ctx=cv.getContext('2d');
+    ctx.clearRect(0,0,w,H); ctx.font='11px sans-serif';
+    for(let g=0;g<=ymax;g+=ystep){ ctx.strokeStyle='#222b3a'; ctx.beginPath(); ctx.moveTo(L,Y(g)); ctx.lineTo(w-R,Y(g)); ctx.stroke();
+      ctx.fillStyle='#93a1b5'; ctx.fillText(g,4,Y(g)+3); }
+    for(let g=0;g<=xmax;g+=o.xstep||5){ ctx.strokeStyle='#1c2431'; ctx.beginPath(); ctx.moveTo(X(g),T); ctx.lineTo(X(g),T+ph); ctx.stroke();
+      ctx.fillText(o.xdist?Math.round(distVal(g)):g,X(g)-4,T+ph+14); }
+    ctx.fillText(o.xdist?distAxisLabel():(o.xlabel||''),L+pw/2-24,H-2);
+    (o.series||[]).forEach(se=>{ ctx.save(); ctx.strokeStyle=se.color; ctx.lineWidth=se.w||2.4; if(se.dash) ctx.setLineDash(se.dash);
+      ctx.beginPath(); se.data.forEach((p,i)=> i?ctx.lineTo(X(p[0]),Y(p[1])):ctx.moveTo(X(p[0]),Y(p[1]))); ctx.stroke(); ctx.restore(); });
+  };
+  draw();
+  cv._chart={o,draw,X,Y,L,T,pw,ph,xmax};
+  if(!cv._tipWired){ cv._tipWired=true;
+    cv.addEventListener('mousemove',e=>{
+      const c=cv._chart; if(!c) return;
+      const r=cv.getBoundingClientRect(); if(!r||!r.width) return;
+      const mx=(e.clientX-r.left)*(cv.width/r.width);
+      const ref=(c.o.series||[]).find(se=>!se.noTip && se.data.length); if(!ref) return;
+      const xv=(mx-c.L)/c.pw*c.xmax;
+      let xn=ref.data[0][0], best=1e9;
+      ref.data.forEach(p=>{ const d=Math.abs(p[0]-xv); if(d<best){best=d;xn=p[0];} });
+      c.draw();
+      const ctx=cv.getContext('2d');
+      ctx.strokeStyle='rgba(255,255,255,.20)'; ctx.beginPath(); ctx.moveTo(c.X(xn),c.T); ctx.lineTo(c.X(xn),c.T+c.ph); ctx.stroke();
+      const dec=c.o.dec!==undefined?c.o.dec:0, unit=c.o.unit!==undefined?c.o.unit:'%';
+      let html=c.o.xdist?`<b>${fmtDist(xn)}</b>`:`<b>${c.o.xlabel||'x'}: ${xn}</b>`;
+      (c.o.series||[]).forEach(se=>{ if(se.noTip||!se.data.length) return;
+        let pt=se.data[0], bd=1e9; se.data.forEach(p=>{const d=Math.abs(p[0]-xn); if(d<bd){bd=d;pt=p;}});
+        ctx.fillStyle=se.color; ctx.beginPath(); ctx.arc(c.X(pt[0]),c.Y(pt[1]),3.2,0,7); ctx.fill();
+        html+=`<br><span style="color:${se.color}">●</span> ${se.name}: <b>${pt[1].toFixed(dec)}${unit}</b>`; });
+      tip(e.clientX,e.clientY,html);
+    });
+    cv.addEventListener('mouseleave',()=>{ hideTip(); if(cv._chart) cv._chart.draw(); });
+  }
 }
 function pill(v){ const c=v>=55?'p-good':v>=30?'p-warn':'p-bad'; return `<span class="pill ${c}">${Math.round(v)}%</span>`; }
 
@@ -376,7 +434,8 @@ function syncControls(root,s){ if(!root) return;
   const g=p=>p.includes('.')?s[p.split('.')[0]][p.split('.')[1]]:s[p];
   root.querySelectorAll('[data-bind]').forEach(el=>{ const v=g(el.dataset.bind);
     if(el.type==='range'||el.type==='number'||el.tagName==='SELECT') el.value=v;
-    const out=el.parentElement.querySelector('.val'); if(out) out.textContent=el.value+(el.dataset.fmt||''); });
+    const out=el.parentElement.querySelector('.val');
+    if(out) out.textContent=('dist' in el.dataset)?fmtDist(parseFloat(el.value)):el.value+(el.dataset.fmt||''); });
   root.querySelectorAll('[data-seg]').forEach(seg=>{ const v=g(seg.dataset.seg);
     seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',String(v)===b.dataset.v)); });
 }
@@ -405,20 +464,33 @@ function wireBannerReset(s,render){
   const g=document.getElementById('banresetgear'); if(g) g.onclick=doReset(()=>{ s.att={bipod:0,foregrip:0,match:0,extender:0}; });
   const b=document.getElementById('banresetedits'); if(b) b.onclick=doReset(()=>{ s.PROP=Object.assign({},DEFAULTS); });
 }
-// heatmap: rows x cols grid colored by value 0..100
+// heatmap: rows x cols grid colored by value 0..100 (hover: cell tooltip)
 function heatmap(cv, rows, cols, cell, opts){ opts=opts||{};
   const w=cv.parentElement.clientWidth-28; cv.width=w; cv.style.width=w+'px';
   const ctx=cv.getContext('2d'), H=cv.height, L=96, T=8, B=22, pw=w-L-8, ph=H-T-B;
   ctx.clearRect(0,0,w,H); ctx.font='11px sans-serif';
   const cw=pw/cols.length, chh=ph/rows.length;
-  rows.forEach((r,ri)=>{ cols.forEach((c,ci)=>{ const v=cell(ri,ci);
+  const grid=rows.map((r,ri)=>cols.map((c,ci)=>cell(ri,ci)));
+  rows.forEach((r,ri)=>{ cols.forEach((c,ci)=>{ const v=grid[ri][ci];
       ctx.fillStyle=`hsl(${Math.max(0,Math.min(120,v*1.2))},58%,42%)`;
       ctx.fillRect(L+ci*cw, T+ri*chh, cw-1, chh-1);
       if(cw>26){ ctx.fillStyle='#0c1017'; ctx.fillText(Math.round(v), L+ci*cw+cw/2-7, T+ri*chh+chh/2+4); } });
     ctx.fillStyle='#cdd6e4'; ctx.fillText(r.label, 2, T+ri*chh+chh/2+4); });
   ctx.fillStyle='#93a1b5';
-  cols.forEach((c,ci)=>{ if(ci%2===0) ctx.fillText(c, L+ci*cw+cw/2-6, H-6); });
-  ctx.fillText(opts.xlabel||'', L+pw/2-20, H-6);
+  cols.forEach((c,ci)=>{ if(ci%2===0) ctx.fillText(opts.xdist?Math.round(distVal(c)):c, L+ci*cw+cw/2-6, H-6); });
+  ctx.fillText(opts.xdist?distAxisLabel():(opts.xlabel||''), L+pw/2-20, H-6);
+  cv._heat={grid,rows,cols,L,T,cw,chh,ph,xdist:opts.xdist};
+  if(!cv._tipWired){ cv._tipWired=true;
+    cv.addEventListener('mousemove',e=>{ const h=cv._heat; if(!h) return;
+      const r=cv.getBoundingClientRect(); if(!r||!r.width) return;
+      const mx=(e.clientX-r.left)*(cv.width/r.width), my=(e.clientY-r.top)*(cv.height/r.height);
+      const ci=Math.floor((mx-h.L)/h.cw), ri=Math.floor((my-h.T)/h.chh);
+      if(ri<0||ri>=h.rows.length||ci<0||ci>=h.cols.length||my<h.T||my>h.T+h.ph){ hideTip(); return; }
+      const at=h.xdist?fmtDist(h.cols[ci]):h.cols[ci];
+      tip(e.clientX,e.clientY,`<b>${h.rows[ri].label}</b> @ ${at}<br>real hit: <b>${h.grid[ri][ci].toFixed(0)}%</b>`);
+    });
+    cv.addEventListener('mouseleave',hideTip);
+  }
 }
 
 // export
@@ -467,5 +539,6 @@ window.NCTH={ DEFAULTS, WEAPONS, SCOPES, ATTACHMENTS, TARGETS, attachCard, load,
   baseAttr, capAttr, condMods, displayedCTH, effMag, scopeEffMag, scopeMinRange, aperture, bulletDevRadius, hitProb, realHit,
   cfAccuracy, cfMax, burst, vbias,
   nav, bind, shooterCard, tuningCard, lineChart, pill, CELL,
-  iniDiff, iniText, exportCard, renderExport, banner, wireBannerReset, syncControls, heatmap };
+  iniDiff, iniText, exportCard, renderExport, banner, wireBannerReset, syncControls, heatmap,
+  tip, hideTip, fmtDist, distVal, distAxisLabel, units:()=>UNITS, setUnits };
 })();

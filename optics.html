@@ -32,7 +32,8 @@ document.getElementById('c1').innerHTML = N.shooterCard() +
       <select id="wpn">${N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('')}</select></div>
     <div id="wnote" class="note"></div>
     <div class="row"><label>Laser pointer (all optics)</label><div class="seg" data-seg="laser" data-num><button data-v="0">Off</button><button data-v="1">On</button></div></div>
-    <div class="row"><label>Laser range in tiles (Laser Sight 10, Rifle LAM 30)</label><span class="val"></span><input data-bind="laserRange" type="range" min="5" max="40" step="1"></div>
+    <div class="row"><label>Laser range (Laser Sight 10t, Rifle LAM 30t)</label><span class="val"></span><input data-bind="laserRange" type="range" min="5" max="40" step="1" data-dist></div>
+    <div class="row"><label>Chart max range</label><span class="val"></span><input data-bind="xmax" type="range" min="20" max="80" step="5" data-dist></div>
     <div class="row"><label>Target darkness % (laser dot)</label><span class="val"></span><input data-bind="dark" type="range" min="0" max="100" step="5"></div>
     <div class="note">Laser gives its full bonus inside its range, then fades linearly to zero at 1.2–2.5× range (darker = dot visible further), per the laser block in <code>AdjustTargetCenterPoint</code>.</div>
   </div>`;
@@ -68,7 +69,8 @@ document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE)
   N.exportCard();
 document.getElementById('leg').innerHTML=SC.map(o=>`<span><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('');
 
-const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
+function rngArr(){ const a=[],st=Math.max(1,Math.round(s.xmax/40)); for(let d=2;d<=s.xmax;d+=st) a.push(d); return a; }
+let rng=rngArr();
 function laserMul(C,sight,dTiles){ if(!s.laser) return 1;
   const b=sight==='scope'?C.LASER_SCOPE:C.LASER_IRON, bright=s.dark/100, lr=s.laserRange||10;
   // C++ (LOS.cpp:8643-78): full bonus inside laser range, linear falloff to a light-extended max range
@@ -79,27 +81,27 @@ function hitLine(C,o){ return rng.map(d=>{ let apR=N.aperture(d*N.CELL,100-N.dis
   apR*=laserMul(C,o.sight,d); return [d,100*N.hitProb(apR,C,s)]; }); }
 
 function render(){
-  const C=s.CUR;
+  const C=s.CUR; rng=rngArr(); const xst=s.xmax>50?10:5;
   // weapon note
   const w=N.WEAPONS[s.wpn]; document.getElementById('wnote').innerHTML=`Handling <b>${s.handling}</b> · max aim <b>${s.maxaim}</b>`;
-  N.lineChart(document.getElementById('hit'),{xmax:XMAX,xlabel:'range (tiles)',series:SC.map(o=>({name:o.n,color:o.c,data:hitLine(C,o)}))});
+  N.lineChart(document.getElementById('hit'),{xmax:s.xmax,xstep:xst,xdist:true,series:SC.map(o=>({name:o.n,color:o.c,data:hitLine(C,o)}))});
   const maxMag=Math.ceil(10*C.SCOPE_EFF_MULT);
-  N.lineChart(document.getElementById('mag'),{xmax:XMAX,ymax:maxMag,ystep:2,xlabel:'range (tiles)',series:
+  N.lineChart(document.getElementById('mag'),{xmax:s.xmax,xstep:xst,ymax:maxMag,ystep:2,xdist:true,unit:'\u00d7',dec:2,series:
     SC.filter(o=>o.mag>1).map(o=>({name:o.n,color:o.c,data:rng.map(d=>[d,N.scopeEffMag(s,C,o.mag,d)])}))
-    .concat(SC.filter(o=>o.mag>1).map(o=>({name:o.n,color:o.c,w:1,dash:[3,4],data:[[2,o.mag],[XMAX,o.mag]]})))});
+    .concat(SC.filter(o=>o.mag>1).map(o=>({name:o.n,color:o.c,w:1,dash:[3,4],noTip:true,data:[[2,o.mag],[s.xmax,o.mag]]})))});
   let h='<tr><th>Optic</th><th>Min range</th><th>Eff. mag there</th><th>Best hit</th></tr>';
   SC.filter(o=>o.mag>1).forEach(o=>{ const mr=N.scopeMinRange(C,o.mag);
     const em=N.scopeEffMag(s,C,o.mag,mr);
     // best hit range = argmax of hitLine
     const line=hitLine(C,o); let best=line[0]; line.forEach(p=>{ if(p[1]>best[1]) best=p; });
-    h+=`<tr><td style="color:${o.c}">${o.n}</td><td>${mr.toFixed(0)} tiles</td><td>${em.toFixed(1)}× / ${o.mag}×</td><td>${best[0]}t (${N.pill(best[1])})</td></tr>`; });
+    h+=`<tr><td style="color:${o.c}">${o.n}</td><td>${N.fmtDist(mr)}</td><td>${em.toFixed(1)}× / ${o.mag}×</td><td>${N.fmtDist(best[0])} (${N.pill(best[1])})</td></tr>`; });
   document.getElementById('tbl').innerHTML=h;
-  const cols=[5,10,15,20,25,30,35,40];
+  const cst=Math.max(5,Math.round(s.xmax/8/5)*5); const cols=[]; for(let d=cst;d<=s.xmax;d+=cst) cols.push(d);
   N.heatmap(document.getElementById('heat'), SC.map(o=>({label:o.n})), cols, (ri,ci)=>{
     const o=SC[ri], d=cols[ci];
     const apR=N.aperture(d*N.CELL,100-N.displayedCTH(s,C,s.maxaim,{dTiles:d,sight:o.sight,mag:o.mag}),C,s,o.sight,o.mag,C.IRON_GRAD)*laserMul(C,o.sight,d);
     return 100*N.hitProb(apR,C,s);
-  }, {xlabel:'range (tiles)'});
+  }, {xdist:true});
   document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
   N.renderExport(s);
 }

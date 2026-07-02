@@ -31,6 +31,7 @@ document.getElementById('c1').innerHTML = N.shooterCard() +
       <option value="0">Sober</option><option value="1">Tipsy</option><option value="2">Drunk</option><option value="3">Wasted</option><option value="4">Hungover</option></select></div>
     <div class="row"><label>Gassed (no mask)</label><div class="seg" data-seg="gassed" data-num><button data-v="0">No</button><button data-v="1">Yes</button></div></div>
     <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
+    <div class="row"><label>Chart max range</label><span class="val"></span><input data-bind="xmax" type="range" min="20" max="80" step="5" data-dist></div>
   </div>`;
 
 document.getElementById('c2').innerHTML =
@@ -59,13 +60,14 @@ document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE)
     <div class="note">Suppression shock is the harshest; halving it makes recruits far less helpless under fire.</div></div>` +
   N.exportCard();
 
-const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
+function rngArr(){ const a=[],st=Math.max(1,Math.round(s.xmax/40)); for(let d=2;d<=s.xmax;d+=st) a.push(d); return a; }
 const healthy=()=>Object.assign({},s,{health:100,breath:100,morale:0,shock:0,drunk:0,gassed:0});
 function render(){
   const C=s.CUR, hs=healthy();
-  N.lineChart(document.getElementById('hit'),{xmax:XMAX,xlabel:'range (tiles)',series:[
-    {name:'healthy',color:'#54d98c',data:rng.map(d=>[d,100*N.realHit(hs,C,d,s.maxaim,s.sight,s.mag,C.IRON_GRAD).p])},
-    {name:'now',color:'#ff6b6b',data:rng.map(d=>[d,100*N.realHit(s,C,d,s.maxaim,s.sight,s.mag,C.IRON_GRAD).p])},
+  const rng=rngArr(), xst=s.xmax>50?10:5;
+  N.lineChart(document.getElementById('hit'),{xmax:s.xmax,xstep:xst,xdist:true,series:[
+    {name:'Healthy',color:'#54d98c',data:rng.map(d=>[d,100*N.realHit(hs,C,d,s.maxaim,s.sight,s.mag,C.IRON_GRAD).p])},
+    {name:'Current condition',color:'#ff6b6b',data:rng.map(d=>[d,100*N.realHit(s,C,d,s.maxaim,s.sight,s.mag,C.IRON_GRAD).p])},
   ]});
   const rows=[
     ['Injury', C.BASE_INJURY*(100-s.health)/100, C.AIM_INJURY*(100-s.health)/100],

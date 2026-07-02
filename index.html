@@ -27,6 +27,7 @@ document.getElementById('c1').innerHTML =
     <div class="row"><label>Weapon example</label><select id="wpn">${N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('')}</select></div>
     <div class="row"><label>Weapon handling (rifle≈11)</label><span class="val"></span><input data-bind="handling" type="range" min="4" max="22" step="1"></div>
     <div class="row"><label>Max aim clicks</label><span class="val"></span><input data-bind="maxaim" type="range" min="2" max="8" step="1"></div>
+    <div class="row"><label>Chart max range</label><span class="val"></span><input data-bind="xmax" type="range" min="20" max="80" step="5" data-dist></div>
     <div class="row"><label>Sight</label><div class="seg" data-seg="sight"><button data-v="iron">Iron</button><button data-v="scope">Scope</button></div></div>
     <div class="row" id="magrow"><label>Scope magnification</label><span class="val"></span><input data-bind="mag" type="range" min="1" max="10" step="0.5" data-fmt="×"></div>
     <div class="row"><label>Gun bullet-deviation (2nd scatter layer)</label><div class="seg" data-seg="bulletdev" data-num><button data-v="0">Off</button><button data-v="1">On</button></div></div>
@@ -50,14 +51,14 @@ document.getElementById('c2').innerHTML =
     <p class="sub">The number on the cursor — note how it barely moves while real hits collapse.</p>
     <canvas id="cth" height="200"></canvas></div>
   <div class="chartbox"><h3>Is the next aim click worth it?</h3>
-    <p class="sub">Real hit % gained per aim click (each click costs APs), at <span id="apr2">10</span> tiles. Diminishing returns.</p>
+    <p class="sub">Real hit % gained per aim click (each click costs APs), at <span id="apr2">10 tiles</span>. Diminishing returns.</p>
     <canvas id="perap" height="180"></canvas>
     <div class="legend"><span><i class="swatch" style="background:var(--good)"></i>CURRENT</span><span><i class="swatch" style="background:var(--prop)"></i>PROPOSED</span></div></div>
   <div class="lab two" style="padding:0;gap:14px;max-width:none">
     <div class="chartbox"><h3>Aperture vs target</h3>
-      <p class="sub"><b style="color:#c58cff">Proposed</b> cone (filled + 250 shots) vs <b style="color:#5cc8ff">current</b> (dashed) vs target (green), at <span id="apr">10</span> tiles, max aim.<span id="apnote" style="color:var(--warn)"></span></p>
+      <p class="sub"><b style="color:#c58cff">Proposed</b> cone (filled + 250 shots) vs <b style="color:#5cc8ff">current</b> (dashed) vs target (green), at <span id="apr">10 tiles</span>, max aim.<span id="apnote" style="color:var(--warn)"></span></p>
       <canvas id="ap" height="240"></canvas>
-      <div class="row"><label>Range for this view (tiles)</label><span class="val"></span><input data-bind="aprange" type="range" min="2" max="40" step="1"></div></div>
+      <div class="row"><label>Range for this view</label><span class="val"></span><input data-bind="aprange" type="range" min="2" max="80" step="1" data-dist></div></div>
     <div class="chartbox"><h3>Pipeline &amp; snapshot</h3><table id="pipe"></table><div id="snap" style="margin-top:10px"></div></div>
   </div>`;
 
@@ -86,14 +87,14 @@ document.getElementById('c3').innerHTML =
     <div class="note">Presets change only the <b style="color:var(--prop)">PROPOSED</b> values.</div></div>` +
   N.exportCard();
 
-const XMAX=40, rng=[]; for(let d=2;d<=XMAX;d++) rng.push(d);
-function ser(C,t,sight){ return rng.map(d=>[d, 100*N.realHit(s,C,d,t,sight,s.mag,C.IRON_GRAD).p]); }
-function cthser(C,t){ return rng.map(d=>[d, N.displayedCTH(s,C,t)]); }
+function rng(){ const a=[],step=Math.max(1,Math.round(s.xmax/40)); for(let d=2;d<=s.xmax;d+=step) a.push(d); return a; }
+function ser(C,t,sight){ return rng().map(d=>[d, 100*N.realHit(s,C,d,t,sight,s.mag,C.IRON_GRAD).p]); }
+function cthser(C,t){ return rng().map(d=>[d, N.displayedCTH(s,C,t,{dTiles:d,sight:s.sight,mag:s.mag})]); }
 
 function drawAperture(){
   const cv=document.getElementById('ap'); const w=cv.parentElement.clientWidth-28; cv.width=w; cv.style.width=w+'px';
   const ctx=cv.getContext('2d'); ctx.clearRect(0,0,w,cv.height);
-  document.getElementById('apr').textContent=s.aprange;
+  document.getElementById('apr').textContent=N.fmtDist(s.aprange);
   const rC=N.realHit(s,s.CUR,s.aprange,s.maxaim,s.sight,s.mag,s.CUR.IRON_GRAD);
   const rP=N.realHit(s,s.PROP,s.aprange,s.maxaim,s.sight,s.mag,s.PROP.IRON_GRAD);
   const cx=w/2, cy=cv.height/2, vbC=N.vbias(s,s.CUR), vbP=N.vbias(s,s.PROP);
@@ -114,25 +115,43 @@ function drawAperture(){
     ctx.fillStyle=hit?'#54d98c':'#ff6b6b'; ctx.globalAlpha=.75;
     ctx.beginPath(); ctx.arc(cx+dx*scale,cy+dy*scale,1.7,0,7); ctx.fill(); }
   ctx.globalAlpha=1;
+  cv._ap={cx,cy,scale,rC:rC.apR,rP:rP.apR,vbC,vbP};
+  if(!cv._tipWired){ cv._tipWired=true;
+    cv.addEventListener('mousemove',e=>{ const a=cv._ap; if(!a) return;
+      const r=cv.getBoundingClientRect(); if(!r||!r.width) return;
+      const px=(e.clientX-r.left)*(cv.width/r.width), py=(e.clientY-r.top)*(cv.height/r.height);
+      const ux=(px-a.cx)/a.scale, uy=(py-a.cy)/a.scale;
+      const onT=(ux*ux)/(s.tw*s.tw)+(uy*uy)/(s.th*s.th)<=1;
+      const inP=a.rP>0 && (ux*ux+(uy/a.vbP)*(uy/a.vbP))<=a.rP*a.rP;
+      const inC=a.rC>0 && (ux*ux+(uy/a.vbC)*(uy/a.vbC))<=a.rC*a.rC;
+      N.tip(e.clientX,e.clientY,
+        `<b>${ux>=0?'+':''}${ux.toFixed(1)} / ${-uy>=0?'+':''}${(-uy).toFixed(1)} units</b> from aim point`+
+        `<br>on target silhouette: <b>${onT?'yes':'no'}</b>`+
+        `<br>inside cone — <span style="color:#c58cff">proposed</span>: ${inP?'yes':'no'} · <span style="color:#5cc8ff">current</span>: ${inC?'yes':'no'}`+
+        `<br>cone radius: <span style="color:#c58cff">${a.rP.toFixed(1)}u</span> / <span style="color:#5cc8ff">${a.rC.toFixed(1)}u</span>`);
+    });
+    cv.addEventListener('mouseleave',N.hideTip);
+  }
   return {rC,rP};
 }
 function render(){
   document.getElementById('magrow').style.display = s.sight==='scope'?'flex':'none';
-  N.lineChart(document.getElementById('hit'),{xmax:XMAX,xlabel:'range (tiles)',series:[
-    {name:'cur',color:'#54d98c',data:ser(s.CUR,s.maxaim,s.sight)},
-    {name:'snap',color:'#5cc8ff',data:ser(s.CUR,0,s.sight)},
-    {name:'prop',color:'#c58cff',dash:[6,4],data:ser(s.PROP,s.maxaim,s.sight)},
+  const xst=s.xmax>50?10:5;
+  N.lineChart(document.getElementById('hit'),{xmax:s.xmax,xstep:xst,xdist:true,series:[
+    {name:'Current · max aim',color:'#54d98c',data:ser(s.CUR,s.maxaim,s.sight)},
+    {name:'Current · snap',color:'#5cc8ff',data:ser(s.CUR,0,s.sight)},
+    {name:'Proposed · max aim',color:'#c58cff',dash:[6,4],data:ser(s.PROP,s.maxaim,s.sight)},
   ]});
-  N.lineChart(document.getElementById('cth'),{xmax:XMAX,xlabel:'range (tiles)',series:[
-    {name:'cur',color:'#54d98c',data:cthser(s.CUR,s.maxaim)},
-    {name:'snap',color:'#5cc8ff',data:cthser(s.CUR,0)},
-    {name:'prop',color:'#c58cff',dash:[6,4],data:cthser(s.PROP,s.maxaim)},
+  N.lineChart(document.getElementById('cth'),{xmax:s.xmax,xstep:xst,xdist:true,series:[
+    {name:'Current · max aim',color:'#54d98c',data:cthser(s.CUR,s.maxaim)},
+    {name:'Current · snap',color:'#5cc8ff',data:cthser(s.CUR,0)},
+    {name:'Proposed · max aim',color:'#c58cff',dash:[6,4],data:cthser(s.PROP,s.maxaim)},
   ]});
   const AP=drawAperture();
   const rC=AP.rC, rP=AP.rP, bC=N.displayedCTH(s,s.CUR,0), bP=N.displayedCTH(s,s.PROP,0);
   const capC=Math.min(N.capAttr(s,s.CUR),s.CUR.MAX_CTH), capP=Math.min(N.capAttr(s,s.PROP),s.PROP.MAX_CTH);
   document.getElementById('pipe').innerHTML=
-    `<tr><th>@ ${s.aprange}t, max aim</th><th>current</th><th style="color:var(--prop)">proposed</th></tr>
+    `<tr><th>@ ${N.fmtDist(s.aprange)}, max aim</th><th>current</th><th style="color:var(--prop)">proposed</th></tr>
      <tr><td>Base CTH (no aim)</td><td>${bC.toFixed(1)}%</td><td>${bP.toFixed(1)}%</td></tr>
      <tr><td>CTH cap</td><td>${capC.toFixed(1)}%</td><td>${capP.toFixed(1)}%</td></tr>
      <tr><td>Displayed CTH</td><td>${rC.cth.toFixed(1)}%</td><td>${rP.cth.toFixed(1)}%</td></tr>
@@ -140,15 +159,16 @@ function render(){
      <tr><td>Aperture radius</td><td>${rC.apR.toFixed(1)}u</td><td>${rP.apR.toFixed(1)}u</td></tr>
      <tr><td><b>Real hit chance</b></td><td><b>${(100*rC.p).toFixed(0)}%</b></td><td><b style="color:var(--prop)">${(100*rP.p).toFixed(0)}%</b></td></tr>`;
   let h='<table><tr><th>Range</th><th>Disp CTH</th><th>Snap</th><th>Max aim</th></tr>';
-  [5,10,15,20,25,30].forEach(d=>{ const a=N.realHit(s,s.CUR,d,s.maxaim,s.sight,s.mag,s.CUR.IRON_GRAD),
+  const snapRows=[...new Set([1,2,3,4,5,6].map(i=>Math.max(5,Math.round(i*s.xmax*0.75/6/5)*5)))];
+  snapRows.forEach(d=>{ const a=N.realHit(s,s.CUR,d,s.maxaim,s.sight,s.mag,s.CUR.IRON_GRAD),
     sn=N.realHit(s,s.CUR,d,0,s.sight,s.mag,s.CUR.IRON_GRAD);
-    h+=`<tr><td>${d}t</td><td>${a.cth.toFixed(0)}%</td><td>${N.pill(100*sn.p)}</td><td>${N.pill(100*a.p)}</td></tr>`; });
+    h+=`<tr><td>${N.fmtDist(d)}</td><td>${a.cth.toFixed(0)}%</td><td>${N.pill(100*sn.p)}</td><td>${N.pill(100*a.p)}</td></tr>`; });
   document.getElementById('snap').innerHTML=h+'</table>';
   // hit-per-aim-click chart
-  document.getElementById('apr2').textContent=s.aprange;
+  document.getElementById('apr2').textContent=N.fmtDist(s.aprange);
   const perap=(C)=>{ const a=[]; for(let t=0;t<=s.maxaim;t++) a.push([t,100*N.realHit(s,C,s.aprange,t,s.sight,s.mag,C.IRON_GRAD).p]); return a; };
   N.lineChart(document.getElementById('perap'),{xmax:Math.max(2,s.maxaim),xstep:1,xlabel:'aim clicks',series:[
-    {name:'cur',color:'#54d98c',data:perap(s.CUR)},{name:'prop',color:'#c58cff',dash:[6,4],data:perap(s.PROP)}]});
+    {name:'Current',color:'#54d98c',data:perap(s.CUR)},{name:'Proposed',color:'#c58cff',dash:[6,4],data:perap(s.PROP)}]});
   document.querySelectorAll('#tgt button').forEach(b=>{ const t=N.TARGETS[+b.dataset.v]; b.classList.toggle('on', t.tw===s.tw && t.th===s.th); });
   document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
   N.renderExport(s);
