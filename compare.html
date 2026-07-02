@@ -3,39 +3,62 @@
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>NCTH Lab — Compare</title>
 <link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script><script src="assets/params.js"></script>
+<style>
+  .cwrap{max-width:1400px;margin:0 auto;padding:8px 18px 60px}
+  .bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;margin-top:12px}
+  .bgrid .card{position:relative}
+  .bdel{position:absolute;top:10px;right:12px;background:none;border:1px solid #37425a;color:var(--mut);
+    border-radius:6px;padding:1px 8px;cursor:pointer;font-size:12px}
+  .bdel:hover{border-color:var(--bad);color:var(--bad)}
+  .addbar{display:flex;gap:12px;align-items:center;margin-top:16px}
+  .addbar button{background:var(--panel2);border:1px solid #37425a;color:var(--ink);border-radius:7px;padding:7px 12px;cursor:pointer;font-size:12.5px}
+  .addbar button:hover{border-color:var(--acc)}
+  .addbar button:disabled{opacity:.4;cursor:default}
+  .addbar span{color:var(--mut);font-size:12px}
+</style>
 </head><body>
 <div id="nav"></div>
 <div id="banner"></div>
 <div class="intro">
-  <h1>Compare — two loadouts head‑to‑head</h1>
-  <p>Pit two full builds (shooter + weapon + optic + stance) against each other on one real‑hit‑vs‑range chart. Answer "is the recruit with a 4× better off than the veteran with iron sights?" at each range. Solid lines use vanilla <code>CTHConstants</code>; <b style="color:var(--prop)">dashed lines</b> show your PROPOSED tuning when edits are active.</p>
+  <h1>Compare — up to six loadouts head‑to‑head</h1>
+  <p>Pit full builds (shooter + weapon + optic + stance) against each other on one real‑hit‑vs‑range chart. Solid lines use vanilla <code>CTHConstants</code>; <b style="color:var(--prop)">dashed lines</b> show your PROPOSED tuning when edits are active.</p>
 </div>
-<div style="max-width:1200px;margin:0 auto;padding:8px 18px 60px">
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" id="builds"></div>
-  <div class="chartbox" style="margin-top:14px"><h3>Real hit chance vs range</h3>
+<div class="cwrap">
+  <div class="chartbox"><h3>Real hit chance vs range</h3>
     <div class="row" style="max-width:380px"><label>Chart max range (10× scope needs ~49 tiles!)</label><span class="val" id="xmv"></span><input id="xm" type="range" min="20" max="100" step="5"></div>
-    <canvas id="hit" height="320"></canvas>
-    <div class="legend"><span><i class="swatch" style="background:#54d98c"></i><b id="la">Build A</b></span>
-      <span><i class="swatch" style="background:#c58cff"></i><b id="lb">Build B</b></span></div>
+    <canvas id="hit" height="340"></canvas>
+    <div class="legend" id="clg"></div>
     <div id="cross" class="note"></div></div>
+  <div class="addbar">
+    <button id="addb">+ Add build</button>
+    <span id="bcount"></span>
+  </div>
+  <div class="bgrid" id="builds"></div>
 </div>
 <script>
-const N=NCTH, S=N.load(); document.getElementById('nav').innerHTML=N.nav('compare.html');
-const KEY='ncth-compare-v1';
+const N=NCTH, S=N.load();
+document.getElementById('nav').innerHTML=N.nav('compare.html');
+const KEY='ncth-compare-v1', MAXB=6, LET='ABCDEF';
+const COLORS=['#54d98c','#c58cff','#5cc8ff','#ffcf5c','#ff8f6b','#6be8e0'];
 let B; try{ B=JSON.parse(localStorage.getItem(KEY)); }catch(e){}
-if(!B) B={ a:{exp:4,marks:70,stance:'stand',wpn:2,scope:4}, b:{exp:6,marks:85,stance:'stand',wpn:6,scope:0} };
+if(B && B.a && !B.builds) B={builds:[B.a,B.b],xmax:B.xmax||40};       // migrate old two-build shape
+if(!B || !Array.isArray(B.builds) || B.builds.length<2)
+  B={builds:[{exp:4,marks:70,stance:'stand',wpn:2,scope:4},{exp:6,marks:85,stance:'stand',wpn:6,scope:0}],xmax:40};
 if(!B.xmax) B.xmax=40;
 function saveB(){ try{ localStorage.setItem(KEY,JSON.stringify(B)); }catch(e){} }
 
-function card(id,b,color){
+function card(idx,b){
+  const color=COLORS[idx];
   const wopt=N.WEAPONS.map((w,i)=>`<option value="${i}">${w.name}</option>`).join('');
   const sopt=N.SCOPES.map((sc,i)=>`<option value="${i}">${sc.name}</option>`).join('');
-  return `<div class="card" style="border-top:3px solid ${color}"><h2 style="color:${color}">Build ${id.toUpperCase()}</h2>
-    <div class="row"><label>Experience ${N.infoBtn('exp')}</label><span class="val">${b.exp}</span><input data-b="${id}" data-k="exp" type="range" min="1" max="10" step="1" value="${b.exp}"></div>
-    <div class="row"><label>Marksmanship ${N.infoBtn('marks')}</label><span class="val">${b.marks}</span><input data-b="${id}" data-k="marks" type="range" min="0" max="100" step="1" value="${b.marks}"></div>
-    <div class="row"><label>Weapon ${N.infoBtn('wpn')}</label><select data-b="${id}" data-k="wpn">${wopt}</select></div>
-    <div class="row"><label>Optic ${N.infoBtn('scope')}</label><select data-b="${id}" data-k="scope">${sopt}</select></div>
-    <div class="row"><label>Stance ${N.infoBtn('stance')}</label><div class="seg" data-b="${id}" data-k="stance">
+  return `<div class="card" style="border-top:3px solid ${color}">
+    ${B.builds.length>2?`<button class="bdel" data-del="${idx}" title="Remove this build">×</button>`:''}
+    <h2 style="color:${color}">Build ${LET[idx]}</h2>
+    <div class="row"><label>Experience ${N.infoBtn('exp')}</label><span class="val">${b.exp}</span><input data-b="${idx}" data-k="exp" type="range" min="1" max="10" step="1" value="${b.exp}"></div>
+    <div class="row"><label>Marksmanship ${N.infoBtn('marks')}</label><span class="val">${b.marks}</span><input data-b="${idx}" data-k="marks" type="range" min="0" max="100" step="1" value="${b.marks}"></div>
+    <div class="row"><label>Weapon ${N.infoBtn('wpn')}</label><select data-b="${idx}" data-k="wpn">${wopt}</select></div>
+    <div class="row"><label>Optic ${N.infoBtn('scope')}</label><select data-b="${idx}" data-k="scope">${sopt}</select></div>
+    <div class="row"><label>Stance ${N.infoBtn('stance')}</label><div class="seg" data-b="${idx}" data-k="stance">
       <button data-v="stand">Stand</button><button data-v="crouch">Crouch</button><button data-v="prone">Prone</button></div></div>
   </div>`;
 }
@@ -48,13 +71,18 @@ function label(b){ return `${N.WEAPONS[b.wpn].name.split(' (')[0]} + ${N.SCOPES[
 const rngArr=()=>N.rangeArr(B.xmax);
 function line(b,C){ C=C||N.DEFAULTS; const sh=buildShooter(b);
   return rngArr().map(d=>[d,100*N.realHit(sh,C,d,sh.maxaim,sh.sight,sh.mag,C.IRON_GRAD).p]); }
+
 function render(){
-  document.getElementById('builds').innerHTML=card('a',B.a,'#54d98c')+card('b',B.b,'#c58cff');
-  const xm=document.getElementById('xm'); if(xm && !xm._wired){ xm._wired=true; xm.value=B.xmax;
-    document.getElementById('xmv').textContent=N.fmtDist(B.xmax);
+  document.getElementById('builds').innerHTML=B.builds.map((b,i)=>card(i,b)).join('');
+  document.getElementById('bcount').textContent=`${B.builds.length} of ${MAXB} builds`;
+  const ab=document.getElementById('addb'); ab.disabled=B.builds.length>=MAXB;
+  ab.onclick=()=>{ if(B.builds.length<MAXB){ B.builds.push(Object.assign({},B.builds[B.builds.length-1])); saveB(); render(); } };
+  const xm=document.getElementById('xm');
+  if(!xm._wired){ xm._wired=true;
     xm.oninput=()=>{ B.xmax=+xm.value; document.getElementById('xmv').textContent=N.fmtDist(B.xmax); saveB(); draw(); }; }
-  // set selects + stance state
-  document.querySelectorAll('#builds [data-b]').forEach(el=>{ const b=B[el.dataset.b], k=el.dataset.k;
+  xm.value=B.xmax; document.getElementById('xmv').textContent=N.fmtDist(B.xmax);
+  document.querySelectorAll('#builds [data-del]').forEach(el=>{ el.onclick=()=>{ B.builds.splice(+el.dataset.del,1); saveB(); render(); }; });
+  document.querySelectorAll('#builds [data-b]').forEach(el=>{ const b=B.builds[+el.dataset.b], k=el.dataset.k;
     if(el.tagName==='SELECT'){ el.value=b[k]; el.onchange=()=>{ b[k]=+el.value; saveB(); render(); }; }
     else if(el.type==='range'){ el.oninput=()=>{ b[k]=+el.value; el.parentElement.querySelector('.val').textContent=el.value; saveB(); draw(); }; }
     else if(el.classList.contains('seg')){ el.querySelectorAll('button').forEach(btn=>{ btn.classList.toggle('on',btn.dataset.v===b[k]);
@@ -62,25 +90,29 @@ function render(){
   draw();
 }
 function draw(){
-  document.getElementById('banner').innerHTML=N.banner(S); N.wireBannerReset(S,draw);
-  const la=line(B.a), lb=line(B.b);
-  document.getElementById('la').textContent=label(B.a);
-  document.getElementById('lb').textContent=label(B.b);
-  const series=[
-    {name:'A · '+label(B.a),color:'#54d98c',data:la},{name:'B · '+label(B.b),color:'#c58cff',data:lb}];
-  if(N.iniDiff(S).length>0){
-    series.push({name:'A · proposed tuning',color:'#54d98c',dash:[5,4],w:1.7,data:line(B.a,S.PROP)});
-    series.push({name:'B · proposed tuning',color:'#c58cff',dash:[5,4],w:1.7,data:line(B.b,S.PROP)});
-  }
+  const hasProp=N.iniDiff(S).length>0;
+  const lines=B.builds.map(b=>line(b));
+  const series=B.builds.map((b,i)=>({name:`${LET[i]} · ${label(b)}`,color:COLORS[i],data:lines[i]}));
+  if(hasProp) B.builds.forEach((b,i)=>series.push({name:`${LET[i]} · proposed tuning`,color:COLORS[i],dash:[5,4],w:1.7,data:line(b,S.PROP)}));
   N.lineChart(document.getElementById('hit'),{xmax:B.xmax,xstep:B.xmax>50?10:5,xdist:true,series});
-  // find crossover(s)
-  let cross=[]; for(let i=1;i<la.length;i++){ const d0=la[i-1][1]-lb[i-1][1], d1=la[i][1]-lb[i][1];
-    if((d0<0)!==(d1<0)) cross.push(la[i][0]); }
-  const near=d=>{ let pa=la[0],pb=lb[0]; la.forEach(p=>{if(Math.abs(p[0]-d)<Math.abs(pa[0]-d))pa=p;}); lb.forEach(p=>{if(Math.abs(p[0]-d)<Math.abs(pb[0]-d))pb=p;});
-    return `${N.fmtDist(pa[0])}: A ${pa[1].toFixed(0)}% vs B ${pb[1].toFixed(0)}%`; };
-  const q=[Math.round(B.xmax*.25),Math.round(B.xmax*.5),Math.round(B.xmax*.75)];
-  document.getElementById('cross').innerHTML =
-    `At ${near(q[0])} · ${near(q[1])} · ${near(q[2])}.` + (cross.length? ` They cross over near <b>${cross.map(c=>N.fmtDist(c)).join(', ')}</b>.` : ` One build leads at every range.`);
+  document.getElementById('clg').innerHTML=B.builds.map((b,i)=>
+    `<span><i class="swatch" style="background:${COLORS[i]}"></i><b>${LET[i]}</b> · ${label(b)}</span>`).join('');
+  // checkpoint readout: values + best build at ¼ / ½ / ¾ of the range
+  const q=[.25,.5,.75].map(f=>Math.round(B.xmax*f));
+  const near=(li,d)=>{ let p=li[0]; li.forEach(x=>{ if(Math.abs(x[0]-d)<Math.abs(p[0]-d)) p=x; }); return p; };
+  const parts=q.map(d=>{
+    const vals=lines.map(li=>near(li,d)[1]);
+    let bi=0; vals.forEach((v,i)=>{ if(v>vals[bi]) bi=i; });
+    return `<b>${N.fmtDist(d)}</b>: ${vals.map((v,i)=>`${LET[i]} ${v.toFixed(0)}%`).join(' · ')} — best <b style="color:${COLORS[bi]}">${LET[bi]}</b>`;
+  });
+  let cross='';
+  if(B.builds.length===2){
+    const cs=[]; for(let i=1;i<lines[0].length;i++){ const d0=lines[0][i-1][1]-lines[1][i-1][1], d1=lines[0][i][1]-lines[1][i][1];
+      if((d0<0)!==(d1<0)) cs.push(lines[0][i][0]); }
+    if(cs.length) cross=`<br>They cross over near <b>${cs.map(c=>N.fmtDist(c)).join(', ')}</b>.`;
+  }
+  document.getElementById('cross').innerHTML=parts.join('<br>')+cross;
+  N.pageChrome(S,draw);
 }
 render();
 </script>
