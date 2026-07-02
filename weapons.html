@@ -7,9 +7,17 @@
   .wgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px;max-width:1780px;margin:0 auto;padding:0 18px 60px}
   .wcard h3{margin:0 0 2px;font-size:14.5px}
   .wcard .stats{color:var(--mut);font-size:12px;margin:0 0 8px;font-variant-numeric:tabular-nums}
-  .ctrl{max-width:1780px;margin:0 auto;padding:0 18px 14px}
+  .ctrl{max-width:1780px;margin:0 auto;padding:0 18px 10px}
   .ctrl .card{display:flex;flex-wrap:wrap;gap:4px 26px;align-items:flex-end}
   .ctrl .row{margin:4px 0;min-width:170px;flex:0 1 200px}
+  /* sticky optic legend — stays visible while scrolling the weapon grid */
+  .wlegend{position:sticky;z-index:15;background:rgba(18,21,27,.94);backdrop-filter:blur(6px);
+    border-top:1px solid #232c3c;border-bottom:1px solid #232c3c;margin-bottom:14px}
+  .wlegend .inner{max-width:1780px;margin:0 auto;padding:9px 18px;display:flex;gap:22px;align-items:center;
+    flex-wrap:wrap;font-size:13px;color:var(--mut)}
+  .wlegend .inner>b{color:var(--ink);font-size:12.5px}
+  .wlegend span{display:inline-flex;align-items:center;gap:7px;color:#cdd6e4}
+  .wlegend .swatch{width:18px;height:4px;border-radius:2px;display:inline-block}
 </style>
 </head><body>
 <div id="nav"></div>
@@ -17,9 +25,9 @@
 <div class="intro">
   <h1>Weapons — every example gun vs every optic</h1>
   <p>Each card shows one weapon's real hit chance vs range, one line per optic (same set as the Compare page), for <b>your shooter</b> under the <b>CURRENT</b> tuning. Gun bullet‑deviation is <b>on</b> here by default so each weapon's own accuracy and effective range matter — that's what separates an SVD from an AK beyond handling.</p>
-  <div class="legend" id="leg" style="padding:4px 0 0"></div>
 </div>
 <div class="ctrl"><div class="card" id="cbar"></div></div>
+<div class="wlegend"><div class="inner" id="leg"></div></div>
 <div class="wgrid" id="grid"></div>
 <div class="foot">Weapon stats from <code>Weapons.xml</code>, optics from <code>Items.xml</code>. Hover any chart for values. Shooter stance/conditions from the other tabs apply here too (see banner).</div>
 <script>
@@ -30,7 +38,11 @@ document.getElementById('nav').innerHTML=N.nav('weapons.html');
 const SC=[{n:'Iron',sight:'iron',mag:1,c:'#8b98ad'},{n:'2×',sight:'scope',mag:2,c:'#54d98c'},
   {n:'4× ACOG',sight:'scope',mag:4,c:'#5cc8ff'},{n:'7×',sight:'scope',mag:7,c:'#ffcf5c'},
   {n:'10× sniper',sight:'scope',mag:10,c:'#c58cff'}];
-document.getElementById('leg').innerHTML=SC.map(o=>`<span><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('');
+document.getElementById('leg').innerHTML='<b>Optics:</b>'+SC.map(o=>`<span><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('');
+// pin the legend just below the sticky top nav
+function pinLegend(){ const nav=document.querySelector('.topnav'), lg=document.querySelector('.wlegend');
+  if(nav&&lg) lg.style.top=(nav.offsetHeight||0)+'px'; }
+pinLegend(); window.addEventListener('resize',pinLegend);
 
 document.getElementById('cbar').innerHTML=`
   <div class="row"><label>Experience</label><span class="val"></span><input data-bind="exp" type="range" min="1" max="10" step="1"></div>
