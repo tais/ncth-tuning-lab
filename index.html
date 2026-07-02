@@ -185,12 +185,7 @@ wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.ha
   root.querySelectorAll('[data-bind="handling"],[data-bind="maxaim"]').forEach(el=>{ el.value=el.dataset.bind==='handling'?s.handling:s.maxaim;
     const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; });
   N.save(s); render(); };
-function refreshProp(){
-  root.querySelectorAll('[data-bind^="PROP."]').forEach(el=>{ const k=el.dataset.bind.split('.')[1];
-    if(el.type==='range'){ el.value=s.PROP[k]; const out=el.parentElement.querySelector('.val'); if(out) out.textContent=el.value; } });
-  root.querySelectorAll('[data-seg^="PROP."]').forEach(seg=>{ const k=seg.dataset.seg.split('.')[1];
-    seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on', String(s.PROP[k])===b.dataset.v)); });
-}
+function refreshProp(){ N.syncControls(root,s); }
 function applyPreset(o){ Object.assign(s.PROP, o); N.save(s); refreshProp(); render(); }
 document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); applyPreset(Object.assign({},N.DEFAULTS)); };
 document.getElementById('pb').onclick=()=>applyPreset(Object.assign({},N.DEFAULTS,{IRON_PERF:35,IRON_MOD:2.5,BASE_EXP:2,BASE_MARKS:1.5,BASE_DRAW:1.5}));

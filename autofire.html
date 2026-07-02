@@ -103,8 +103,7 @@ function render(){
 }
 const root=document.querySelector('.lab');
 N.bind(root,s,render);
-function refreshProp(){ root.querySelectorAll('[data-bind^="PROP."]').forEach(el=>{ const k=el.dataset.bind.split('.')[1];
-  if(el.type==='range'){ el.value=s.PROP[k]; const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; } }); }
+function refreshProp(){ N.syncControls(root,s); }
 document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); s.PROP=Object.assign({},N.DEFAULTS); N.save(s); refreshProp(); render(); };
 document.getElementById('pc').onclick=()=>{ Object.assign(s.PROP,{RC_MAX_FORCE:16,RC_MAX_STR:3.5,RCA_DEX:4}); N.save(s); refreshProp(); render(); };
 window.addEventListener('resize',render);

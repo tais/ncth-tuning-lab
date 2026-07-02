@@ -249,9 +249,22 @@ function bind(root, s, render){
     if(el.type==='range'||el.type==='number'){ el.value=cur; }
     else if(el.tagName==='SELECT'){ el.value=cur; }
     const out=el.parentElement.querySelector('.val');
-    const fmt=el.dataset.fmt||'';
-    const show=()=>{ if(out) out.textContent=('dist' in el.dataset)?fmtDist(parseFloat(el.value)):el.value+(fmt); };
+    const show=()=>displayVal(el,out);
     show();
+    // vanilla-default tick mark on PROP tuning sliders
+    if(el.type==='range' && path.indexOf('PROP.')===0){
+      const dk=path.split('.')[1];
+      if(DEFAULTS[dk]!==undefined){
+        const row=el.parentElement;
+        if(row && row.style && !row.querySelector('.defmark')){
+          const mk=document.createElement('div'); mk.className='defmark'; mk.title='vanilla: '+DEFAULTS[dk];
+          const lo=parseFloat(el.min), hi=parseFloat(el.max);
+          const pct=Math.max(0,Math.min(1,(DEFAULTS[dk]-lo)/(hi-lo)));
+          mk.style.left='calc(8px + (100% - 16px)*'+pct+')';
+          row.style.position='relative'; row.appendChild(mk);
+        }
+      }
+    }
     const num=('num' in el.dataset);   // valueless data-num => dataset.num==='' (falsy), so test presence
     el.addEventListener('input',()=>{ let v=el.value; if(el.type==='range'||el.type==='number') v=parseFloat(v);
       if(el.tagName==='SELECT' && !isNaN(v) && num) v=parseFloat(v);
@@ -569,13 +582,26 @@ function renderExport(s,prefix){ prefix=prefix||'exp';
     try{ navigator.clipboard.writeText(ta.value); }catch(e){ try{document.execCommand('copy');}catch(_){} }
     const m=document.getElementById(prefix+'_msg'); if(m){ m.textContent='copied ✓'; setTimeout(()=>m.textContent='',1500); } }; }
 }
+// value readout: for PROP tuning sliders show "(was <vanilla>)" when changed
+function displayVal(el,out){
+  if(!out) return;
+  const disp=('dist' in el.dataset)?fmtDist(parseFloat(el.value)):el.value+(el.dataset.fmt||'');
+  const path=el.dataset.bind||'';
+  if(el.type==='range' && path.indexOf('PROP.')===0){
+    const def=DEFAULTS[path.split('.')[1]];
+    if(def!==undefined && parseFloat(el.value)!==def){
+      out.innerHTML=`<span style="color:var(--prop)">${disp}</span> <span class="wasval">was ${def}</span>`;
+      return;
+    }
+  }
+  out.textContent=disp;
+}
 // push every [data-bind] control + [data-seg] toggle back in sync with current state
 function syncControls(root,s){ if(!root) return;
   const g=p=>p.includes('.')?s[p.split('.')[0]][p.split('.')[1]]:s[p];
   root.querySelectorAll('[data-bind]').forEach(el=>{ const v=g(el.dataset.bind);
     if(el.type==='range'||el.type==='number'||el.tagName==='SELECT') el.value=v;
-    const out=el.parentElement.querySelector('.val');
-    if(out) out.textContent=('dist' in el.dataset)?fmtDist(parseFloat(el.value)):el.value+(el.dataset.fmt||''); });
+    displayVal(el, el.parentElement.querySelector('.val')); });
   root.querySelectorAll('[data-seg]').forEach(seg=>{ const v=g(seg.dataset.seg);
     seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',String(v)===b.dataset.v)); });
 }

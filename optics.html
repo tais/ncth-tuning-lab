@@ -112,8 +112,7 @@ const root=document.querySelector('.lab');
 N.bind(root,s,render);
 const wsel=document.getElementById('wpn'); wsel.value=s.wpn;
 wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil; s.acc=w.acc; s.effRange=w.effRange; N.save(s); render(); };
-function refreshProp(){ root.querySelectorAll('[data-bind^="PROP."]').forEach(el=>{ const k=el.dataset.bind.split('.')[1];
-  if(el.type==='range'){ el.value=s.PROP[k]; const o=el.parentElement.querySelector('.val'); if(o)o.textContent=el.value; } }); }
+function refreshProp(){ N.syncControls(root,s); }
 document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); s.PROP=Object.assign({},N.DEFAULTS); N.save(s); refreshProp(); render(); };
 document.getElementById('pl').onclick=()=>{ Object.assign(s.PROP,{SCOPE_EFF_MIN:70,LASER_IRON:25,LASER_SCOPE:20,AIM_TOO_CLOSE:-2}); N.save(s); refreshProp(); render(); };
 window.addEventListener('resize',render);
