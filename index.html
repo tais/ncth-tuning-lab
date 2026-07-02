@@ -88,7 +88,7 @@ document.getElementById('c3').innerHTML =
     <div class="note">Presets change only the <b style="color:var(--prop)">PROPOSED</b> values. "OCTH-like feel" makes the cursor % roughly equal the real hit chance at 12–18 tiles, like the old system promised.</div></div>` +
   N.exportCard();
 
-function rng(){ const a=[],step=Math.max(1,Math.round(s.xmax/40)); for(let d=2;d<=s.xmax;d+=step) a.push(d); return a; }
+const rng=()=>N.rangeArr(s.xmax);
 function ser(C,t,sight){ return rng().map(d=>[d, 100*N.realHit(s,C,d,t,sight,s.mag,C.IRON_GRAD).p]); }
 function cthser(C,t){ return rng().map(d=>[d, N.displayedCTH(s,C,t,{dTiles:d,sight:s.sight,mag:s.mag})]); }
 
@@ -171,8 +171,7 @@ function render(){
   N.lineChart(document.getElementById('perap'),{xmax:Math.max(2,s.maxaim),xstep:1,xlabel:'aim clicks',series:[
     {name:'Current',color:'#54d98c',data:perap(s.CUR)},{name:'Proposed',color:'#c58cff',dash:[6,4],data:perap(s.PROP)}]});
   document.querySelectorAll('#tgt button').forEach(b=>{ const t=N.TARGETS[+b.dataset.v]; b.classList.toggle('on', t.tw===s.tw && t.th===s.th); });
-  document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
-  N.renderExport(s);
+  N.pageChrome(s,render);
 }
 const root=document.querySelector('.lab');
 N.bind(root, s, render);
@@ -187,7 +186,7 @@ wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.ha
   N.save(s); render(); };
 function refreshProp(){ N.syncControls(root,s); }
 function applyPreset(o){ Object.assign(s.PROP, o); N.save(s); refreshProp(); render(); }
-document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); applyPreset(Object.assign({},N.DEFAULTS)); };
+document.getElementById('pv').onclick=()=>N.resetVanilla(s,root,render);
 document.getElementById('pb').onclick=()=>applyPreset(Object.assign({},N.DEFAULTS,{IRON_PERF:35,IRON_MOD:2.5,BASE_EXP:2,BASE_MARKS:1.5,BASE_DRAW:1.5}));
 document.getElementById('pt').onclick=()=>applyPreset(Object.assign({},N.DEFAULTS,{DEG_APERTURE:11,IRON_PERF:30}));
 document.getElementById('po').onclick=()=>applyPreset(Object.assign({},N.DEFAULTS,{IRON_PERF:30,IRON_MOD:2,BASE_EXP:2}));

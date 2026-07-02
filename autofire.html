@@ -98,13 +98,12 @@ function render(){
   document.getElementById('sum').innerHTML =
     `Average hit across the volley: CURRENT <b>${(100*bC.avg).toFixed(0)}%</b> · PROPOSED <b style="color:var(--prop)">${(100*bP.avg).toFixed(0)}%</b>. `+
     `Counter-force accuracy <b>${N.cfAccuracy(s,s.CUR).toFixed(0)}%</b>, max counter-force <b>${N.cfMax(s,s.CUR).toFixed(1)}</b> vs recoil <b>${s.gunRecoil}</b>/bullet.`;
-  document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
-  N.renderExport(s);
+  N.pageChrome(s,render);
 }
 const root=document.querySelector('.lab');
 N.bind(root,s,render);
 function refreshProp(){ N.syncControls(root,s); }
-document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); s.PROP=Object.assign({},N.DEFAULTS); N.save(s); refreshProp(); render(); };
+document.getElementById('pv').onclick=()=>N.resetVanilla(s,root,render);
 document.getElementById('pc').onclick=()=>{ Object.assign(s.PROP,{RC_MAX_FORCE:16,RC_MAX_STR:3.5,RCA_DEX:4}); N.save(s); refreshProp(); render(); };
 window.addEventListener('resize',render);
 render();

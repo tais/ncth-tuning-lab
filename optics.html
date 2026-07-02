@@ -69,7 +69,7 @@ document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE)
   N.exportCard();
 document.getElementById('leg').innerHTML=SC.map(o=>`<span><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('');
 
-function rngArr(){ const a=[],st=Math.max(1,Math.round(s.xmax/40)); for(let d=2;d<=s.xmax;d+=st) a.push(d); return a; }
+const rngArr=()=>N.rangeArr(s.xmax);
 let rng=rngArr();
 function laserMul(C,sight,dTiles){ if(!s.laser) return 1;
   const b=sight==='scope'?C.LASER_SCOPE:C.LASER_IRON, bright=s.dark/100, lr=s.laserRange||10;
@@ -105,15 +105,14 @@ function render(){
     const apR=N.aperture(d*N.CELL,100-N.displayedCTH(s,C,s.maxaim,{dTiles:d,sight:o.sight,mag:o.mag}),C,s,o.sight,o.mag,C.IRON_GRAD)*laserMul(C,o.sight,d);
     return 100*N.hitProb(apR,C,s);
   }, {xdist:true});
-  document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
-  N.renderExport(s);
+  N.pageChrome(s,render);
 }
 const root=document.querySelector('.lab');
 N.bind(root,s,render);
 const wsel=document.getElementById('wpn'); wsel.value=s.wpn;
 wsel.onchange=()=>{ s.wpn=+wsel.value; const w=N.WEAPONS[s.wpn]; s.handling=w.handling; s.maxaim=w.maxaim; s.gunRecoil=w.gunRecoil; s.acc=w.acc; s.effRange=w.effRange; N.save(s); render(); };
 function refreshProp(){ N.syncControls(root,s); }
-document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); s.PROP=Object.assign({},N.DEFAULTS); N.save(s); refreshProp(); render(); };
+document.getElementById('pv').onclick=()=>N.resetVanilla(s,root,render);
 document.getElementById('pl').onclick=()=>{ Object.assign(s.PROP,{SCOPE_EFF_MIN:70,LASER_IRON:25,LASER_SCOPE:20,AIM_TOO_CLOSE:-2}); N.save(s); refreshProp(); render(); };
 window.addEventListener('resize',render);
 // apply current weapon to state on load

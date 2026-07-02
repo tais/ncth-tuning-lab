@@ -59,7 +59,7 @@ document.getElementById('c3').innerHTML = N.tuningCard('CTHConstants.ini', TUNE)
     <div class="note">Suppression shock is the harshest; halving it makes recruits far less helpless under fire.</div></div>` +
   N.exportCard();
 
-function rngArr(){ const a=[],st=Math.max(1,Math.round(s.xmax/40)); for(let d=2;d<=s.xmax;d+=st) a.push(d); return a; }
+const rngArr=()=>N.rangeArr(s.xmax);
 const healthy=()=>Object.assign({},s,{health:100,breath:100,morale:0,shock:0,drunk:0,gassed:0});
 function render(){
   const C=s.CUR, hs=healthy();
@@ -89,13 +89,12 @@ function render(){
   h+=`<tr><td><b>Displayed CTH (max aim)</b></td><td>${cthH.toFixed(0)}%→</td><td><b>${cthN.toFixed(0)}%</b></td></tr>`;
   h+=`<tr><td><b>Real hit @10 tiles</b></td><td>${N.pill(100*rH)}→</td><td><b>${N.pill(100*rN)}</b></td></tr>`;
   document.getElementById('brk').innerHTML=h;
-  document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
-  N.renderExport(s);
+  N.pageChrome(s,render);
 }
 const root=document.querySelector('.lab');
 N.bind(root,s,render);
 function refreshProp(){ N.syncControls(root,s); }
-document.getElementById('pv').onclick=()=>{ s.CUR=Object.assign({},N.DEFAULTS); s.PROP=Object.assign({},N.DEFAULTS); N.save(s); refreshProp(); render(); };
+document.getElementById('pv').onclick=()=>N.resetVanilla(s,root,render);
 document.getElementById('ph').onclick=()=>{ Object.assign(s.PROP,{BASE_SHOCK:-75,AIM_SHOCK:-75}); N.save(s); refreshProp(); render(); };
 window.addEventListener('resize',render);
 render();

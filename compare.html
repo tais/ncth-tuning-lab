@@ -45,7 +45,7 @@ function buildShooter(b){ const sh=N.freshState(), w=N.WEAPONS[b.wpn], sc=N.SCOP
   return sh; }
 function label(b){ return `${N.WEAPONS[b.wpn].name.split(' (')[0]} + ${N.SCOPES[b.scope].name} · exp ${b.exp}/mrk ${b.marks}`; }
 
-function rngArr(){ const a=[],st=Math.max(1,Math.round(B.xmax/40)); for(let d=2;d<=B.xmax;d+=st) a.push(d); return a; }
+const rngArr=()=>N.rangeArr(B.xmax);
 function line(b,C){ C=C||N.DEFAULTS; const sh=buildShooter(b);
   return rngArr().map(d=>[d,100*N.realHit(sh,C,d,sh.maxaim,sh.sight,sh.mag,C.IRON_GRAD).p]); }
 function render(){

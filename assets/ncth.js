@@ -168,16 +168,41 @@ function bulletDevRadius(s,C,dUnits){
   dev*=dUnits/C.NORMAL_DIST;    // iDistanceRatio
   return Math.max(0,dev);
 }
-// Monte-Carlo hit chance; offY = vertical center offset (recoil); devR = gun bullet-deviation radius
+// exact P(uniform point in cone-ellipse (apR, apR*vb) centered (0,offY) lands in target-ellipse (tw,th) at origin)
+// both ellipses are axis-aligned, so the overlap area is a 1D integral (Simpson, n=64)
+function ellipseOverlapProb(apR,vb,tw,th,offY){
+  if(apR<=0) return ((offY*offY)/(th*th)<=1)?1:0;   // degenerate cone = a point at (0,offY)
+  const ry=apR*vb;
+  const y0=Math.max(offY-ry,-th), y1=Math.min(offY+ry,th);
+  if(y0>=y1) return 0;
+  const n=64, h=(y1-y0)/n; let acc=0;
+  for(let i=0;i<=n;i++){
+    const y=y0+i*h;
+    const cy=1-((y-offY)/ry)*((y-offY)/ry), ty=1-(y/th)*(y/th);
+    const w=Math.min(apR*Math.sqrt(Math.max(0,cy)), tw*Math.sqrt(Math.max(0,ty)));
+    acc+=w*((i===0||i===n)?1:(i%2?4:2));
+  }
+  const overlap=acc*h/3*2;                          // ×2: w is a half-width
+  return Math.min(1, overlap/(Math.PI*apR*ry));
+}
+// tiny seeded PRNG so the (rare) sampled paths render identically between frames
+function mulberry32(a){ return function(){ a|=0; a=(a+0x6D2B79F5)|0;
+  let t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t;
+  return ((t^(t>>>14))>>>0)/4294967296; }; }
+// hit chance; offY = vertical center offset (recoil); devR = gun bullet-deviation radius.
+// devR==0: exact analytic (fast, smooth). devR>0: seeded quasi-MC over the deviation convolution.
 function hitProb(apR,C,s,offY,n,devR){
-  n=n||3000; offY=offY||0; devR=devR||0;
-  if(apR<=0 && offY===0 && devR<=0) return 1;
-  const tw=s.tw, th=s.th, vb=vbias(s,C); let h=0;
+  offY=offY||0; devR=devR||0;
+  const vb=vbias(s,C), tw=s.tw, th=s.th;
+  if(!(devR>0)) return ellipseOverlapProb(apR,vb,tw,th,offY);
+  n=n||1200;
+  const rnd=mulberry32((Math.round(apR*97)+Math.round(devR*131)+Math.round(offY*61)+Math.round(tw*7+th*13)+Math.round(vb*1000))|0);
+  let h=0;
   for(let i=0;i<n;i++){
-    const r=Math.sqrt(Math.random()), a=Math.random()*2*Math.PI;
+    const r=Math.sqrt(rnd()), a=rnd()*2*Math.PI;
     let dx=Math.sin(a)*r*apR, dy=Math.cos(a)*r*apR*vb + offY;
-    if(devR>0){ const r2=Math.random()*devR, a2=Math.random()*2*Math.PI;  // uniform-in-radius (no sqrt), per source
-      dx+=Math.sin(a2)*r2; dy+=Math.cos(a2)*r2; }
+    const r2=rnd()*devR, a2=rnd()*2*Math.PI;   // uniform-in-radius (no sqrt), per CalcBulletDeviation
+    dx+=Math.sin(a2)*r2; dy+=Math.cos(a2)*r2;
     if((dx*dx)/(tw*tw)+(dy*dy)/(th*th)<=1) h++;
   }
   return h/n;
@@ -800,6 +825,19 @@ function attachCard(keys){ const list=keys?ATTACHMENTS.filter(a=>keys.includes(a
     `<div class="note">Effects are representative, taken from the vanilla items. Laser/scope live on the <a href="optics.html">Optics</a> tab.</div></div>`;
 }
 
+// ---- shared page boilerplate ----
+function rangeArr(xmax,divisor){ const a=[],st=Math.max(1,Math.round(xmax/(divisor||40)));
+  for(let d=2;d<=xmax;d+=st) a.push(d); return a; }
+function pageChrome(s,render){
+  const b=document.getElementById('banner');
+  if(b){ b.innerHTML=banner(s); wireBannerReset(s,render); }
+  renderExport(s);
+}
+function resetVanilla(s,root,render){
+  s.CUR=Object.assign({},DEFAULTS); s.PROP=Object.assign({},DEFAULTS);
+  save(s); syncControls(root,s); if(render) render();
+}
+
 window.NCTH={ DEFAULTS, WEAPONS, SCOPES, ATTACHMENTS, TARGETS, attachCard, load, save, freshState,
   baseAttr, capAttr, condMods, displayedCTH, effMag, scopeEffMag, scopeMinRange, aperture, bulletDevRadius, hitProb, realHit,
   cfAccuracy, cfMax, burst, vbias,
@@ -807,5 +845,6 @@ window.NCTH={ DEFAULTS, WEAPONS, SCOPES, ATTACHMENTS, TARGETS, attachCard, load,
   iniDiff, iniText, exportCard, renderExport, banner, wireBannerReset, syncControls, heatmap,
   tip, hideTip, fmtDist, distVal, distAxisLabel, units:()=>UNITS, setUnits,
   infoBtn, showInfo, THREAD,
+  rangeArr, pageChrome, resetVanilla,
   makeZip, buildTunedIni, buildModZip, downloadModZip };
 })();

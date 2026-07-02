@@ -31,8 +31,6 @@ code{background:#0e1219;border:1px solid #2a3346;border-radius:4px;padding:1px 5
 .card{background:var(--panel);border:1px solid #2a3346;border-radius:10px;padding:13px 15px}
 .card h2{margin:0 0 10px;font-size:12.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--acc)}
 .card h2 .propflag{color:var(--prop);text-transform:none;letter-spacing:0;font-size:11px;font-weight:400}
-.grp{border-top:1px dashed #303a4d;margin-top:10px;padding-top:8px}
-.grp:first-of-type{border:0;margin:0;padding:0}
 .note{color:var(--mut);font-size:12px;margin-top:9px;border-left:2px solid #37425a;padding-left:10px}
 
 /* ---- controls: label above full-width slider ---- */

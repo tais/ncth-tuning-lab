@@ -72,7 +72,7 @@ document.getElementById('grid').innerHTML=N.WEAPONS.map((w,i)=>`
     <canvas id="wc${i}" height="260"></canvas>
   </div>`).join('');
 
-function rngArr(){ const a=[],st=Math.max(2,Math.round(s.xmax/25)); for(let d=2;d<=s.xmax;d+=st) a.push(d); return a; }
+const rngArr=()=>N.rangeArr(s.xmax,25);
 function shooterFor(w){ return Object.assign({},s,{handling:w.handling,maxaim:w.maxaim,gunRecoil:w.gunRecoil,acc:w.acc,effRange:w.effRange}); }
 function hitLine(sw,o,C,rng){ const t=s.wpnaim==='max'?sw.maxaim:0;
   return rng.map(d=>{ const cth=N.displayedCTH(sw,C,t,{dTiles:d,sight:o.sight,mag:o.mag});
@@ -92,7 +92,7 @@ function render(){
     if(hasProp) series=series.concat(act.map(o=>({name:o.n+' (proposed)',color:o.c,dash:[5,4],w:1.7,data:hitLine(sw,o,s.PROP,rng)})));
     N.lineChart(document.getElementById('wc'+i),{xmax:s.xmax,xstep:xst,xdist:true,group:'wpn',series});
   });
-  document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,render);
+  N.pageChrome(s,render);
 }
 N.bind(document.body, s, render);
 window.addEventListener('resize',render);
