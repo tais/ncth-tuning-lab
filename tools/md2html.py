@@ -140,10 +140,14 @@ li{{margin:5px 0}}
 strong{{color:#fff}}
 </style></head><body>
 <div id="nav"></div>
+<div id="banner"></div>
 <main>
 {body}
 </main>
-<script>if(window.NCTH)document.getElementById('nav').innerHTML=NCTH.nav('report.html');</script>
+<script>if(window.NCTH){{document.getElementById('nav').innerHTML=NCTH.nav('report.html');
+const S=NCTH.load();
+function showBan(){{document.getElementById('banner').innerHTML=NCTH.banner(S);NCTH.wireBannerReset(S,showBan);}}
+showBan();}}</script>
 </body></html>'''
 
 md=open(sys.argv[1],encoding='utf-8').read()

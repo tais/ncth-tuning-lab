@@ -30,6 +30,7 @@ li{margin:5px 0}
 strong{color:#fff}
 </style></head><body>
 <div id="nav"></div>
+<div id="banner"></div>
 <main>
 <h1>Jagged Alliance 2 v1.13 — Understanding &amp; Tuning the New Chance‑To‑Hit (NCTH) System</h1>
 <p>*A source‑grounded analysis of the NCTH shooting model — designed and written by <strong>Headrock</strong> (see his own design document: <a href="https://thepit.ja-galaxy-forum.com/index.php?t=msg&amp;th=16717&amp;start=0&amp;">"New Chance To Hit system — The Formula", The Bear's Pit</a>) — why low‑level mercs "can't hit anything", and exactly which knobs to turn.*</p>
@@ -421,5 +422,8 @@ BASE_EXP                          = 2.0    ; was 3.0</code></pre>
 </tbody></table></div>
 <p>*This report and the Tuning Lab were produced by reading the mod source directly and validating every figure by simulation; a separate adversarial review pass confirmed the formulas and corrected three points (the <code>NORMAL_SHOOTING_DISTANCE</code> non‑lever, the "one CTH value feeding geometry" framing, and the population‑selective nature of the <code>BASE_EXP/BASE_MARKS</code> rebalance).*</p>
 </main>
-<script>if(window.NCTH)document.getElementById('nav').innerHTML=NCTH.nav('report.html');</script>
+<script>if(window.NCTH){document.getElementById('nav').innerHTML=NCTH.nav('report.html');
+const S=NCTH.load();
+function showBan(){document.getElementById('banner').innerHTML=NCTH.banner(S);NCTH.wireBannerReset(S,showBan);}
+showBan();}</script>
 </body></html>

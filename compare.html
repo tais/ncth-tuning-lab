@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script><script src="assets/params.js"></script>
 </head><body>
 <div id="nav"></div>
+<div id="banner"></div>
 <div class="intro">
   <h1>Compare — two loadouts head‑to‑head</h1>
   <p>Pit two full builds (shooter + weapon + optic + stance) against each other on one real‑hit‑vs‑range chart. Answer "is the recruit with a 4× better off than the veteran with iron sights?" at each range. Solid lines use vanilla <code>CTHConstants</code>; <b style="color:var(--prop)">dashed lines</b> show your PROPOSED tuning when edits are active.</p>
@@ -61,6 +62,7 @@ function render(){
   draw();
 }
 function draw(){
+  document.getElementById('banner').innerHTML=N.banner(S); N.wireBannerReset(S,draw);
   const la=line(B.a), lb=line(B.b);
   document.getElementById('la').textContent=label(B.a);
   document.getElementById('lb').textContent=label(B.b);

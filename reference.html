@@ -24,6 +24,7 @@
 </style>
 </head><body>
 <div id="nav"></div>
+<div id="banner"></div>
 <div class="refwrap">
   <h1 style="font-size:19px;margin:8px 0 2px">Every NCTH parameter</h1>
   <p style="color:var(--mut);font-size:13px;margin:2px 0 0">All 113 <code>CTHConstants.ini</code> keys (with the game's own documentation) plus the NCTH-relevant <code>Ja2_Options.INI</code> / <code>DifficultySettings.xml</code> keys. The interactive tabs expose the high-impact subset; this is the complete map. Values shown are the mod's current defaults.</p>
@@ -41,6 +42,9 @@
 <script>
 const N=NCTH, P=window.NCTH_PARAMS;
 document.getElementById('nav').innerHTML=N.nav('reference.html');
+const S=N.load();
+function showBan(){ document.getElementById('banner').innerHTML=N.banner(S); N.wireBannerReset(S,showBan); }
+showBan();
 const SECTIONS=['All','General','Base CTH','Aiming CTH','Shooting Mechanism','Ja2_Options.INI','DifficultySettings.xml'];
 let sec='All', hi=false, q='';
 document.getElementById('secchips').innerHTML=SECTIONS.map(x=>`<span class="chip${x==='All'?' on':''}" data-sec="${x}">${x}</span>`).join('');
