@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NCTH Lab — Gun XML fields</title>
+<link rel="stylesheet" href="assets/style.css"><script src="assets/ncth.js"></script><script src="assets/params.js"></script>
+<style>
+  .fgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;max-width:1500px;margin:0 auto;padding:0 18px 60px}
+  @media(max-width:900px){.fgrid{grid-template-columns:1fr}}
+  .fgrid .chartbox p{font-size:12.5px;color:#cdd6e4;line-height:1.55;margin:6px 0 10px}
+  .trap{max-width:1500px;margin:0 auto 16px;padding:0 18px}
+  .trap table{font-size:13px}
+  .trap td:first-child,.trap th:first-child{text-align:left}
+  .trap td,.trap th{text-align:left}
+  .trap .octh{color:var(--bad);font-family:ui-monospace,Menlo,monospace;font-size:12px}
+  .trap .ncth{color:var(--good);font-family:ui-monospace,Menlo,monospace;font-size:12px}
+  .warn{background:rgba(255,107,107,.08);border-left:3px solid var(--bad);padding:8px 12px;border-radius:0 8px 8px 0;font-size:12.5px;color:#f0c8c8;margin:10px 0}
+  .src{color:#6f7d92;font-size:11px;margin-top:6px}
+</style>
+</head><body>
+<div id="nav"></div>
+<div id="banner"></div>
+<div class="intro">
+  <h1>Gun XML fields — what NCTH actually reads per weapon</h1>
+  <p><code>CTHConstants.ini</code> tunes the <i>system</i>; each gun brings its own stats from <code>Weapons.xml</code> / <code>Items.xml</code>. Two of those fields have <b>OCTH and NCTH twins</b> — tune the wrong one and nothing happens. Below: the trap table, then a live chart per field showing what changing it does (shooter: exp <span id="shx"></span> / marks <span id="shm"></span>, standing, iron sights, current tuning).</p>
+</div>
+
+<div class="trap"><div class="card">
+  <h2>⚠️ The twin-field traps</h2>
+  <table>
+    <tr><th>What you want to change</th><th>OCTH reads…</th><th>NCTH reads…</th><th>Notes</th></tr>
+    <tr><td><b>Gun accuracy / spread</b></td><td class="octh">bAccuracy (0–~15)</td><td class="ncth">nAccuracy (0–100)</td>
+      <td>Under NCTH, <code>bAccuracy</code> is completely ignored (<code>Items.cpp:14338</code>). <code>nAccuracy</code> is also scaled by gun <b>condition</b> and boosted by ammo/attachment <code>PercentAccuracyModifier</code>.</td></tr>
+    <tr><td><b>Burst / autofire spread</b></td><td class="octh">ubBurstPenalty</td><td class="ncth">bRecoilX + bRecoilY</td>
+      <td>NCTH replaced the flat burst penalty with a per-bullet <b>recoil vector</b> (X = sideways pull, Y = climb) plus <code>ubRecoilDelay</code>. First bullet is always recoil-free.</td></tr>
+    <tr><td>Handling / bulk</td><td colspan="2" class="ncth">Handling</td><td>Biggest per-gun NCTH factor: base/aim CTH penalty ×stance ×DRAW_COST.</td></tr>
+    <tr><td>Aiming depth</td><td colspan="2" class="ncth">ubAimLevels</td><td>Max aim clicks; NCTH only reaches the CTH cap by spending them all.</td></tr>
+    <tr><td>Effective range</td><td colspan="2" class="ncth">usRange</td><td>Bullet-deviation range steps, AI shot limit, gravity onset. Displayed in meters (1 tile = 10 m).</td></tr>
+  </table>
+  <div class="src">Attachments &amp; ammo add: <code>PercentCap</code> (aimed ceiling — 311 items!), <code>PercentHandling</code>, <code>PercentMaxCounterForce</code>/<code>PercentCounterForceAccuracy</code> (recoil control), <code>PercentAccuracyModifier</code>, <code>Range(Percent)Bonus</code>, <code>ScopeMagFactor</code>/<code>BestLaserRange</code>. Per weapon-<i>type</i> global multipliers live in <code>Item_Settings.ini</code>.</div>
+</div></div>
+
+<div class="fgrid" id="grid"></div>
+<div class="foot">All curves computed with the shared NCTH model (current tuning, no proposed overlay here). Hover any chart for values; charts are linked per row topic. Sources: <code>Weapons.cpp</code>, <code>LOS.cpp</code>, <code>Items.cpp</code>.</div>
+<script>
+const N=NCTH, s=N.load();
+document.getElementById('nav').innerHTML=N.nav('fields.html');
+function showBan(){ document.getElementById('banner').innerHTML=N.banner(s); N.wireBannerReset(s,showBan); }
+showBan();
+document.getElementById('shx').textContent=s.exp; document.getElementById('shm').textContent=s.marks;
+const C=s.CUR, COLS=['#54d98c','#5cc8ff','#c58cff'];
+const AK={handling:11,maxaim:4,acc:63,effRange:330,gunRecoil:7};
+const SHARP={exp:8,marks:95,dex:90,wis:85};   // veteran — tight cone, so gun-level scatter becomes visible
+function mk(over){ return Object.assign({},s,{stance:'stand',sight:'iron',mag:1},AK,over); }
+const rng=[]; for(let d=2;d<=40;d++) rng.push(d);
+function hitCurve(sw,t,dev){ return rng.map(d=>{
+  const cth=N.displayedCTH(sw,C,t,{dTiles:d,sight:'iron',mag:1});
+  const apR=N.aperture(d*N.CELL,100-cth,C,sw,'iron',1,C.IRON_GRAD);
+  const devR=dev? N.bulletDevRadius(sw,C,d*N.CELL):0;
+  return [d,100*N.hitProb(apR,C,sw,0,900,devR)]; }); }
+
+const CARDS=[
+ {t:'Handling — the gun-difficulty penalty', id:'f_h',
+  p:'Handling (≈ AP cost to ready the gun) is the largest per-gun CTH factor. Standing, it multiplies through as <code>−handling × 2.0 × BASE_DRAW_COST</code> — a handling-14 LMG loses over half its base CTH before anything else happens. Pistols (~9) snap-shoot far better than their accuracy suggests.',
+  src:'CalcNewChanceToHitBaseWeaponBonus, Weapons.cpp:11504',
+  draw:cv=>N.lineChart(cv,{xmax:40,xdist:true,series:[8,11,14].map((h,i)=>({name:'Handling '+h,color:COLS[i],data:hitCurve(mk({handling:h}),AK.maxaim,false)}))})},
+ {t:'nAccuracy — the NCTH accuracy stat (not bAccuracy!)', id:'f_a',
+  p:'Drives the gun’s own scatter layer on top of the aim cone: <code>deviation = MAX_BULLET_DEV × (100 − nAccuracy)/100</code>, growing with range. Invisible on the cursor. Shown for a <b>veteran</b> (exp 8 / marks 95): with a sloppy shooter the wide aim cone drowns the gun’s scatter out — accuracy only starts to matter once your cone is tight.',
+  src:'GetGunAccuracy Items.cpp:14344 · CalcBulletDeviation LOS.cpp:9541',
+  draw:cv=>N.lineChart(cv,{xmax:40,xdist:true,series:[30,60,90].map((a,i)=>({name:'nAccuracy '+a,color:COLS[i],data:hitCurve(mk(Object.assign({},SHARP,{acc:a,bulletdev:1})),AK.maxaim,true)}))})},
+ {t:'ubAimLevels — how deep you can aim', id:'f_l',
+  p:'Max aim clicks per gun. Every gun reaches its shooter’s CTH cap at full clicks — but a 3-level shotgun gets there in coarse, cheap steps while an 8-level sniper rifle climbs further per AP overall. X-axis: clicks spent at 15 tiles.',
+  src:'AllowedAimingLevels, Items.cpp:13507 · aim distribution Weapons.cpp:6579',
+  draw:cv=>{ const seriess=[3,5,8].map((L,i)=>{ const sw=mk({maxaim:L}); const a=[];
+      for(let t=0;t<=L;t++){ const cth=N.displayedCTH(sw,C,t,{dTiles:15,sight:'iron',mag:1});
+        const apR=N.aperture(150,100-cth,C,sw,'iron',1,C.IRON_GRAD);
+        a.push([t,100*N.hitProb(apR,C,sw,0,900,0)]); }
+      return {name:L+' aim levels',color:COLS[i],data:a}; });
+    N.lineChart(cv,{xmax:8,xstep:1,xlabel:'aim clicks spent',series:seriess}); }},
+ {t:'bRecoilY — per-bullet muzzle climb (not ubBurstPenalty!)', id:'f_r',
+  p:'Each bullet after the first pushes the muzzle by the gun’s recoil vector; strength/agility counter part of it. Low recoil (MP5 ≈ 6) keeps a burst on target; a Glock-18 (13) climbs off a torso by bullet 3. X-axis: bullet number in a 6-round volley at 12 tiles.',
+  src:'GetRecoil Items.cpp:10857 · CalcRecoilOffset LOS.cpp:10188',
+  draw:cv=>{ const seriess=[4,8,13].map((r,i)=>{ const sw=mk({gunRecoil:r,bullets:6});
+      const b=N.burst(sw,C,12,AK.maxaim,'iron',1,C.IRON_GRAD);
+      return {name:'RecoilY '+r,color:COLS[i],data:b.rows.map(x=>[x.i,100*x.p])}; });
+    N.lineChart(cv,{xmax:6,xstep:1,xlabel:'bullet #',series:seriess}); }},
+ {t:'usRange — effective range steps the scatter', id:'f_g',
+  p:'Bullet deviation multiplies by <code>floor(range / usRange)</code> — integer division in the source — so scatter is flat inside effective range, then <b>jumps</b> at 2× and 3×. Y-axis: deviation radius in units for a 63-accuracy gun. The steps are why shots feel fine at 1.9× range and suddenly wild at 2.1×.',
+  src:'CalcBulletDeviation LOS.cpp:9582 (integer division)',
+  draw:cv=>{ const seriess=[[150,'usRange 150 (15t)'],[330,'usRange 330 (33t)'],[630,'usRange 630 (63t)']].map((e,i)=>({
+      name:e[1],color:COLS[i],data:rng.map(d=>[d, N.bulletDevRadius(mk({effRange:e[0],bulletdev:1}),C,d*N.CELL)])}));
+    N.lineChart(cv,{xmax:40,xdist:true,ymax:16,ystep:4,unit:'u',dec:1,series:seriess}); }},
+ {t:'Gun condition — worn guns really scatter', id:'f_c',
+  p:'Under NCTH the accuracy stat is multiplied by the gun’s condition (<code>nAccuracy × status/100</code>), so a 60%-condition AK behaves like a 38-accuracy gun. Below 50% condition an extra aiming penalty kicks in too (<code>AIM_GUN_CONDITION</code>). Shown for a veteran shooter; repair matters more under NCTH than it ever did under OCTH.',
+  src:'GetGunAccuracy Items.cpp:14345 · AIM_GUN_CONDITION Weapons.cpp:11880',
+  draw:cv=>N.lineChart(cv,{xmax:40,xdist:true,series:[100,70,40].map((st,i)=>({name:'Condition '+st+'%',color:COLS[i],
+      data:hitCurve(mk(Object.assign({},SHARP,{acc:Math.round(AK.acc*st/100),bulletdev:1})),AK.maxaim,true)}))})},
+];
+document.getElementById('grid').innerHTML=CARDS.map(c=>
+  `<div class="chartbox"><h3>${c.t}</h3><p>${c.p}</p><canvas id="${c.id}" height="220"></canvas><div class="src">${c.src}</div></div>`).join('');
+function render(){ CARDS.forEach(c=>c.draw(document.getElementById(c.id))); }
+window.addEventListener('resize',render);
+render();
+</script>
+</body></html>

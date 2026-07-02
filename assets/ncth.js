@@ -232,7 +232,7 @@ function burst(s,C,dTiles,t,sight,mag,grad){
 // =================== UI HELPERS ===================
 function nav(active){
   const T=[['index.html','Accuracy'],['optics.html','Optics'],['conditions.html','Conditions'],
-           ['autofire.html','Recoil & Autofire'],['weapons.html','Weapons'],['compare.html','Compare']];
+           ['autofire.html','Recoil & Autofire'],['weapons.html','Weapons'],['fields.html','Gun fields'],['compare.html','Compare']];
   let t=T.map(([h,l])=>`<a href="${h}"${h===active?' class="on"':''}>${l}</a>`).join('');
   t+=`<a href="reference.html"${active==='reference.html'?' class="on ref"':' class="ref"'}>All parameters</a>`;
   t+=`<a href="report.html"${active==='report.html'?' class="on"':''}>Report</a>`;
