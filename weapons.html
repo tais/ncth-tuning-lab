@@ -46,9 +46,13 @@ const SC=[{n:'Iron',sight:'iron',mag:1,c:'#8b98ad'},{n:'2×',sight:'scope',mag:2
 function renderLeg(){
   document.getElementById('leg').innerHTML='<b>Optics:</b>'+SC.map((o,i)=>
     `<span class="${s.optvis[i]?'':'off'}" data-oi="${i}" title="Click to show/hide this optic"><i class="swatch" style="background:${o.c}"></i>${o.n}</span>`).join('')+
-    '<span class="hint">click an optic to toggle · dashed = PROPOSED tuning (when edits active)</span>';
-  document.querySelectorAll('#leg [data-oi]').forEach(el=>{ el.onclick=()=>{ const i=+el.dataset.oi;
-    s.optvis[i]=s.optvis[i]?0:1; N.save(s); renderLeg(); render(); }; });
+    (s.optvis.some(v=>v)
+      ? '<span class="hint">click: toggle · alt-click: solo · dashed = PROPOSED tuning (when edits active)</span>'
+      : '<span class="hint" style="color:var(--warn)">⚠ all optics hidden — click an optic to show its line again</span>');
+  document.querySelectorAll('#leg [data-oi]').forEach(el=>{ el.onclick=(e)=>{ const i=+el.dataset.oi;
+    if(e.altKey) s.optvis=s.optvis.map((_,j)=>j===i?1:0);
+    else s.optvis[i]=s.optvis[i]?0:1;
+    N.save(s); renderLeg(); render(); }; });
 }
 renderLeg();
 // pin the legend just below the sticky top nav
@@ -91,6 +95,9 @@ function render(){
     let series=act.map(o=>({name:o.n,color:o.c,data:hitLine(sw,o,C,rng)}));
     if(hasProp) series=series.concat(act.map(o=>({name:o.n+' (proposed)',color:o.c,dash:[5,4],w:1.7,data:hitLine(sw,o,s.PROP,rng)})));
     N.lineChart(document.getElementById('wc'+i),{xmax:s.xmax,xstep:xst,xdist:true,group:'wpn',series});
+    if(!act.length){ const cv=document.getElementById('wc'+i), ctx=cv.getContext('2d');
+      ctx.fillStyle='#ffcf5c'; ctx.font='13px sans-serif';
+      ctx.fillText('All optics hidden — click an optic in the legend above', 70, cv.height/2); }
   });
   N.pageChrome(s,render);
 }
